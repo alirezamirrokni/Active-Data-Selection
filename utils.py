@@ -49,6 +49,7 @@ def run_name_from_config(cfg: Dict[str, Any]) -> str:
         f"data-{safe_name(data.get('name', 'data'))}-{safe_name(data.get('split', 'split'))}",
         f"n{safe_name(data.get('max_examples', 'all'))}",
         f"main-{safe_name(main.get('provider', 'main'))}-{safe_name(main.get('model_name', 'model'))}",
+        f"prompt-{safe_name(main.get('prompt_version', 'default'))}",
         f"score-{safe_name(score.get('provider', 'none'))}-{safe_name(score.get('model_name', 'none'))}",
         f"cost-{safe_name(policy.get('cost_variant', 'constant'))}",
         f"eps{fmt_float(policy.get('epsilon', 0))}",
@@ -68,6 +69,7 @@ def generation_cache_name(cfg: Dict[str, Any]) -> str:
         f"n{safe_name(data.get('max_examples', 'all'))}",
         safe_name(main.get("provider", "main")),
         safe_name(main.get("model_name", "model")),
+        f"prompt{safe_name(main.get('prompt_version', 'default'))}",
         f"temp{fmt_float(main.get('temperature', 0))}",
     ]
     return "__".join(parts) + ".csv"

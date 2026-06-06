@@ -17,6 +17,7 @@ main_llm:
   retry_attempts: 8
   retry_sleep: 2.0
   min_seconds_between_calls: 2.5
+  prompt_version: gsm8k_compact_v2
 score_llm:
   provider: none
 policy:

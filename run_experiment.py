@@ -94,18 +94,31 @@ def ensure_generations(records: List[Dict[str, Any]], data_wrapper, main_llm, ca
     done_ids = set(cache["example_id"].astype(int).tolist()) if len(cache) else set()
     missing = [r for r in records if int(r["example_id"]) not in done_ids]
 
+    cached_seen = len(cache)
+    cached_correct = int((1 - cache["A"].astype(int)).sum()) if len(cache) else 0
+    cached_acc = _safe_div(cached_correct, cached_seen)
+
     print(f"[cache] generation cache: {cache_path}")
     print(f"[cache] loaded={len(done_ids)} missing={len(missing)} total={len(records)}")
+    if cached_seen:
+        print(f"[cache] cached model accuracy={cached_acc:.4f} ({cached_correct}/{cached_seen})")
 
     rows = cache.to_dict("records") if len(cache) else []
     if not missing:
         return cache
 
-    for rec in tqdm(missing, desc="main LLM generations", dynamic_ncols=True):
+    seen = cached_seen
+    correct = cached_correct
+    pbar = tqdm(missing, desc="main LLM generations", dynamic_ncols=True)
+    for rec in pbar:
         prompt = data_wrapper.build_prompt(rec["question"])
         model_answer = main_llm.generate(prompt)
         pred_answer = data_wrapper.parse_prediction(model_answer)
         A = data_wrapper.failure_label(pred_answer, rec["gold_final"])
+        seen += 1
+        correct += int(A == 0)
+        running_acc = _safe_div(correct, seen)
+        pbar.set_postfix(acc=f"{running_acc:.3f}", correct=f"{correct}/{seen}")
         rows.append(
             {
                 "example_id": rec["example_id"],
@@ -202,13 +215,18 @@ def run(cfg_path: str, reset: bool = False, reset_generations: bool = False) -> 
     n = len(records)
     batch_starts = list(range(0, n, batch_size))
 
-    for start in tqdm(batch_starts, desc=cfg["run_name"], dynamic_ncols=True):
+    method_pbar = tqdm(batch_starts, desc=cfg["run_name"], dynamic_ncols=True)
+    for start in method_pbar:
         end = min(start + batch_size, n)
         t = start // batch_size
         batch_records = records[start:end]
         ids = [int(r["example_id"]) for r in batch_records]
 
         if all(i in done_ids for i in ids):
+            partial_df = pd.DataFrame(all_rows, columns=RUN_COLUMNS) if all_rows else run_df
+            if len(partial_df):
+                running_acc = _safe_div(int((1 - partial_df["A"].astype(int)).sum()), len(partial_df))
+                method_pbar.set_postfix(acc=f"{running_acc:.3f}")
             continue
 
         batch_df = make_batch_rows(cfg, gen_by_id, batch_records, t)
@@ -219,7 +237,8 @@ def run(cfg_path: str, reset: bool = False, reset_generations: bool = False) -> 
         existing = pd.DataFrame(all_rows, columns=RUN_COLUMNS) if all_rows else pd.DataFrame(columns=RUN_COLUMNS)
         existing = existing[~existing["example_id"].astype(str).isin([str(i) for i in ids])]
         all_rows = existing.to_dict("records") + out_batch.to_dict("records")
-        write_csv_atomic(pd.DataFrame(all_rows, columns=RUN_COLUMNS), paths["run_csv"])
+        current_df = pd.DataFrame(all_rows, columns=RUN_COLUMNS)
+        write_csv_atomic(current_df, paths["run_csv"])
 
         done_ids.update(ids)
         save_json_atomic(
@@ -234,7 +253,13 @@ def run(cfg_path: str, reset: bool = False, reset_generations: bool = False) -> 
         n_sel = int(out_batch["selected"].sum())
         type_i = 0.0 if n_sel == 0 else float(((out_batch["selected"] * (1 - out_batch["A"])).sum()) / n_sel)
         spent = float((out_batch["selected"] * out_batch["cost"]).sum())
-        print(f"[batch {t:03d}] selected={n_sel:3d} spent={spent:.1f} type-I={type_i:.3f}")
+        running_correct = int((1 - current_df["A"].astype(int)).sum())
+        running_acc = _safe_div(running_correct, len(current_df))
+        method_pbar.set_postfix(acc=f"{running_acc:.3f}", rows=len(current_df))
+        print(
+            f"[batch {t:03d}] selected={n_sel:3d} spent={spent:.1f} "
+            f"type-I={type_i:.3f} model-acc={running_acc:.3f} ({running_correct}/{len(current_df)})"
+        )
 
     final_df = pd.DataFrame(all_rows, columns=RUN_COLUMNS)
     print_run_summary(final_df)

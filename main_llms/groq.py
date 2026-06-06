@@ -5,6 +5,19 @@ from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
 
+DEFAULT_SYSTEM_PROMPT = """You are a careful GSM8K math solver.
+
+Hard requirements:
+- Always solve the problem within the available answer budget of at most {max_output_tokens} tokens.
+- Keep the solution compact: use at most 4 short reasoning steps.
+- Do not write long explanations, introductions, caveats, or alternative methods.
+- Do not include code, markdown tables, or bullet-heavy formatting.
+- End with exactly one final line in this format:
+#### <number>
+
+The final line must contain only the marker #### followed by the numeric answer."""
+
+
 @dataclass
 class GroqConfig:
     provider: str
@@ -15,10 +28,8 @@ class GroqConfig:
     retry_attempts: int = 8
     retry_sleep: float = 2.0
     min_seconds_between_calls: float = 2.5
-    system_prompt: str = (
-        "You are solving grade-school math problems. "
-        "Give a concise solution and put the final numeric answer at the end."
-    )
+    system_prompt: Optional[str] = None
+    prompt_version: str = "gsm8k_compact_v2"
 
 
 class GroqLLM:
@@ -40,6 +51,11 @@ class GroqLLM:
         self.cfg = GroqConfig(**cfg)
         self.client = Groq(api_key=api_key, timeout=self.cfg.request_timeout)
         self._last_call_time = 0.0
+        self.system_prompt = (
+            self.cfg.system_prompt
+            if self.cfg.system_prompt is not None
+            else DEFAULT_SYSTEM_PROMPT.format(max_output_tokens=self.cfg.max_output_tokens)
+        )
 
     def _throttle(self) -> None:
         elapsed = time.time() - self._last_call_time
@@ -84,7 +100,7 @@ class GroqLLM:
                 response = self.client.chat.completions.create(
                     model=self.cfg.model_name,
                     messages=[
-                        {"role": "system", "content": self.cfg.system_prompt},
+                        {"role": "system", "content": self.system_prompt},
                         {"role": "user", "content": prompt},
                     ],
                     temperature=self.cfg.temperature,
