@@ -9,7 +9,7 @@ data:
   max_examples: 200
   batch_size: 20
 main_llm:
-  provider: llama_3_3_70b_versatile
+  provider: llama
   model_name: llama-3.3-70b-versatile
   temperature: 0.0
   max_output_tokens: 512

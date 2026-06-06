@@ -49,6 +49,46 @@ RUN_COLUMNS = [
 ]
 
 
+
+def _safe_div(num: float, den: float) -> float:
+    return 0.0 if den <= 0 else float(num / den)
+
+
+def print_run_summary(df: pd.DataFrame) -> None:
+    """Print compact end-of-run metrics from the saved run CSV."""
+    if df is None or len(df) == 0:
+        print("[summary] no rows available")
+        return
+
+    A = df["A"].astype(float)
+    selected = df["selected"].astype(float)
+    cost = df["cost"].astype(float)
+    budget = df["budget"].astype(float)
+
+    n = len(df)
+    n_selected = int(selected.sum())
+    n_unselected = int(n - n_selected)
+
+    model_correct = int((1.0 - A).sum())
+    model_accuracy = _safe_div(model_correct, n)
+
+    type_i = _safe_div(float((selected * (1.0 - A)).sum()), float(selected.sum()))
+    type_ii = _safe_div(float(((1.0 - selected) * A).sum()), float((1.0 - selected).sum()))
+
+    spent_total = float((selected * cost).sum())
+    budget_total = float(budget.groupby(df["t"]).first().sum()) if "t" in df else float(budget.sum())
+    budget_used = _safe_div(spent_total, budget_total)
+
+    print("\n[summary]")
+    print(f"  examples          : {n}")
+    print(f"  model accuracy    : {model_accuracy:.4f} ({model_correct}/{n})")
+    print(f"  selected          : {n_selected}")
+    print(f"  unselected        : {n_unselected}")
+    print(f"  type-I            : {type_i:.4f}")
+    print(f"  type-II           : {type_ii:.4f}")
+    print(f"  budget used       : {spent_total:.2f}/{budget_total:.2f} ({100.0 * budget_used:.1f}%)")
+
+
 def ensure_generations(records: List[Dict[str, Any]], data_wrapper, main_llm, cache_path: Path) -> pd.DataFrame:
     cache = read_csv_or_empty(cache_path, GEN_COLUMNS)
     done_ids = set(cache["example_id"].astype(int).tolist()) if len(cache) else set()
@@ -196,6 +236,8 @@ def run(cfg_path: str, reset: bool = False, reset_generations: bool = False) -> 
         spent = float((out_batch["selected"] * out_batch["cost"]).sum())
         print(f"[batch {t:03d}] selected={n_sel:3d} spent={spent:.1f} type-I={type_i:.3f}")
 
+    final_df = pd.DataFrame(all_rows, columns=RUN_COLUMNS)
+    print_run_summary(final_df)
     print(f"[done] wrote {paths['run_csv']}")
 
 
