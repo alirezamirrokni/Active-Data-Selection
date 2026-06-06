@@ -20,10 +20,5 @@ main_llm:
 score_llm:
   provider: none
 policy:
-  epsilon: 0.1
-  alpha_step_size: 0.1
-  theta_step_size: 0.05
-  initial_alpha: 0.0
   budget_per_batch: 5
   cost_variant: constant
-  l2_reg: 0.0

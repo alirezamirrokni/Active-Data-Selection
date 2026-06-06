@@ -193,7 +193,7 @@ def make_batch_rows(
             "beta": float("nan"),
             "selected": 0,
             "budget": float(policy["budget_per_batch"]),
-            "epsilon": float(policy["epsilon"]),
+            "epsilon": float(policy.get("epsilon", "nan")),
             "main_llm_provider": cfg["main_llm"].get("provider"),
             "main_llm": cfg["main_llm"].get("model_name"),
             "score_llm_provider": score_cfg.get("provider", "none"),
