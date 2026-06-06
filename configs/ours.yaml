@@ -5,8 +5,8 @@ data:
   name: math500
   hf_name: HuggingFaceH4/MATH-500
   split: test
-  max_examples: 500
-  batch_size: 20
+  max_examples: 100
+  batch_size: 10
 main_llm:
   provider: groq
   model_name: llama-3.3-70b-versatile
@@ -38,7 +38,7 @@ score_llm:
     {model_answer}'
 policy:
   epsilon: 0.1
-  alpha_step_size: 0.1
+  alpha_step_size: 0.05
   theta_step_size: 0.05
   initial_alpha: 0.0
   theta_init_scale: 0.01
