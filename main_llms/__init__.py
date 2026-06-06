@@ -1,11 +1,11 @@
 from .gemini import GeminiLLM
-from .llama import LlamaLLM
+from .groq import GroqLLM
 
 
 def build_main_llm(cfg):
     provider = cfg.get("provider")
     if provider == "gemini":
         return GeminiLLM(cfg)
-    if provider == "llama":
-        return LlamaLLM(cfg)
+    if provider == "groq":
+        return GroqLLM(cfg)
     raise ValueError(f"Unknown main_llm.provider: {provider}")
