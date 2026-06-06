@@ -68,8 +68,7 @@ class GSM8KWrapper:
     @staticmethod
     def build_prompt(question: str) -> str:
         return (
-            "Solve this GSM8K problem. Keep the answer compact enough to fit the token budget.\n"
-            "Use at most 4 short reasoning steps. Do not include extra commentary.\n"
+            "Solve the following GSM8K problem.\n"
             "End with exactly one final line in this format: #### <number>\n\n"
             f"Problem:\n{question}"
         )

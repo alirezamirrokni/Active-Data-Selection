@@ -8,10 +8,7 @@ from typing import Any, Dict, Optional
 DEFAULT_SYSTEM_PROMPT = """You are a careful GSM8K math solver.
 
 Hard requirements:
-- Always solve the problem within the available answer budget of at most {max_output_tokens} tokens.
-- Keep the solution compact: use at most 4 short reasoning steps.
-- Do not write long explanations, introductions, caveats, or alternative methods.
-- Do not include code, markdown tables, or bullet-heavy formatting.
+- Solve the problem accurately.
 - End with exactly one final line in this format:
 #### <number>
 
@@ -23,13 +20,13 @@ class GeminiConfig:
     provider: str
     model_name: str
     temperature: float = 0.0
-    max_output_tokens: int = 512
+    max_output_tokens: int = 1024
     request_timeout: int = 120
     retry_attempts: int = 8
     retry_sleep: float = 2.0
     min_seconds_between_calls: float = 15.0
     system_prompt: Optional[str] = None
-    prompt_version: str = "gsm8k_compact_v2"
+    prompt_version: str = "gsm8k_answer_format_v3"
 
 
 class GeminiLLM:
@@ -53,7 +50,7 @@ class GeminiLLM:
         self.system_prompt = (
             self.cfg.system_prompt
             if self.cfg.system_prompt is not None
-            else DEFAULT_SYSTEM_PROMPT.format(max_output_tokens=self.cfg.max_output_tokens)
+            else DEFAULT_SYSTEM_PROMPT
         )
 
     def _throttle(self) -> None:
