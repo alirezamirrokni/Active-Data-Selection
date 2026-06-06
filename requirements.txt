@@ -13,3 +13,4 @@ matplotlib>=3.8.0
 python-dotenv>=1.0.0
 bitsandbytes>=0.43.0
 sympy>=1.12
+math-verify[antlr4_13_2]>=0.8.0

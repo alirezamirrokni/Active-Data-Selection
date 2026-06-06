@@ -93,6 +93,7 @@ def normalize_math_answer(ans: str | None) -> Optional[str]:
     s = s.replace("\\left", "").replace("\\right", "")
     s = s.replace("\\,", "").replace("\\!", "").replace("\\;", "").replace("\\:", "")
     s = s.replace("\u2212", "-")
+    s = re.sub(r"\\text\{([^{}]*)\}", r"\1", s)
     s = s.replace(" ", "")
     s = s.rstrip(".")
 
@@ -100,66 +101,72 @@ def normalize_math_answer(ans: str | None) -> Optional[str]:
     if boxed is not None:
         s = boxed
 
-    s = _strip_outer_braces(s)
-    return s
+    return _strip_outer_braces(s)
 
 
-def _replace_latex_frac(s: str) -> str:
-    pattern = re.compile(r"\\frac\{([^{}]+)\}\{([^{}]+)\}")
-    previous = None
-    while previous != s:
-        previous = s
-        s = pattern.sub(r"((\1)/(\2))", s)
-    return s
-
-
-def _replace_latex_sqrt(s: str) -> str:
-    pattern = re.compile(r"\\sqrt\{([^{}]+)\}")
-    previous = None
-    while previous != s:
-        previous = s
-        s = pattern.sub(r"sqrt(\1)", s)
-    return s
-
-
-def _to_sympy_string(s: str) -> str:
-    s = normalize_math_answer(s) or ""
-    s = _replace_latex_frac(s)
-    s = _replace_latex_sqrt(s)
-    s = s.replace("\\pi", "pi")
-    s = s.replace("^", "**")
-    s = s.replace("\\cdot", "*").replace("\\times", "*")
-    s = s.replace("{", "(").replace("}", ")")
-    return s
-
-
-def math_equal(a: str | None, b: str | None, tol: float = 1e-6) -> bool:
+def _fallback_equal(a: str | None, b: str | None, tol: float = 1e-6) -> bool:
     na = normalize_math_answer(a)
     nb = normalize_math_answer(b)
     if na is None or nb is None:
         return False
     if na == nb:
         return True
-
-    # Numeric fallback for simple decimal/integer forms.
     try:
         return abs(float(na.replace(",", "")) - float(nb.replace(",", ""))) <= tol
     except Exception:
+        return False
+
+
+def _math_verify_parse(text: str):
+    from math_verify import parse
+
+    if text is None:
+        return []
+    text = str(text).strip()
+    if not text:
+        return []
+
+    # Math-Verify is most reliable when LaTeX is inside a math environment. We try the
+    # raw string first, then simple math-environment variants.
+    variants = [
+        text,
+        f"${text}$",
+        f"\\boxed{{{text}}}",
+        f"$\\boxed{{{text}}}$",
+    ]
+    last = []
+    for variant in variants:
+        try:
+            parsed = parse(variant)
+            last = parsed
+            if parsed:
+                return parsed
+        except Exception:
+            continue
+    return last
+
+
+def math_equal(a: str | None, b: str | None) -> bool:
+    if a is None or b is None:
+        return False
+
+    try:
+        from math_verify import verify
+
+        gold = _math_verify_parse(b)
+        answer = _math_verify_parse(a)
+        if gold and answer:
+            return bool(verify(gold, answer))
+    except ImportError as exc:
+        raise ImportError(
+            "math-verify is required for MATH-500 correctness checking. "
+            "Install it with `pip install 'math-verify[antlr4_13_2]'`."
+        ) from exc
+    except Exception:
         pass
 
-    # Lightweight symbolic fallback. This is intentionally conservative: if parsing fails,
-    # we return normalized exact match rather than guessing equivalence.
-    try:
-        import sympy as sp
-
-        ea = sp.sympify(_to_sympy_string(na))
-        eb = sp.sympify(_to_sympy_string(nb))
-        diff = sp.simplify(ea - eb)
-        if diff == 0:
-            return True
-        return bool(abs(float(sp.N(diff))) <= tol)
-    except Exception:
-        return False
+    # Conservative fallback for formatting-only mismatches or simple numerics.
+    return _fallback_equal(a, b)
 
 
 class Math500Wrapper:
@@ -182,7 +189,7 @@ class Math500Wrapper:
             problem = row.get("problem") or row.get("question") or row.get("input")
             solution = row.get("solution", "")
             answer = row.get("answer") or final_answer_from_text(solution)
-            gold_final = final_answer_from_text(answer)
+            gold_final = final_answer_from_text(answer) or final_answer_from_text(solution)
             records.append(
                 {
                     "example_id": idx,

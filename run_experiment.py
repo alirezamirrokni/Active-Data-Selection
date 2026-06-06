@@ -91,17 +91,26 @@ def print_run_summary(df: pd.DataFrame) -> None:
 
 def ensure_generations(records: List[Dict[str, Any]], data_wrapper, main_llm, cache_path: Path) -> pd.DataFrame:
     cache = read_csv_or_empty(cache_path, GEN_COLUMNS)
+    target_ids = {int(r["example_id"]) for r in records}
     done_ids = set(cache["example_id"].astype(int).tolist()) if len(cache) else set()
+    done_target_ids = done_ids.intersection(target_ids)
     missing = [r for r in records if int(r["example_id"]) not in done_ids]
 
-    cached_seen = len(cache)
-    cached_correct = int((1 - cache["A"].astype(int)).sum()) if len(cache) else 0
+    if len(cache):
+        cache_relevant = cache[cache["example_id"].astype(int).isin(target_ids)]
+    else:
+        cache_relevant = cache
+    cached_seen = len(cache_relevant)
+    cached_correct = int((1 - cache_relevant["A"].astype(int)).sum()) if len(cache_relevant) else 0
     cached_acc = _safe_div(cached_correct, cached_seen)
 
     print(f"[cache] generation cache: {cache_path}")
-    print(f"[cache] loaded={len(done_ids)} missing={len(missing)} total={len(records)}")
+    print(
+        f"[cache] cached_total={len(cache)} loaded_for_this_run={len(done_target_ids)} "
+        f"missing={len(missing)} requested={len(records)}"
+    )
     if cached_seen:
-        print(f"[cache] cached model accuracy={cached_acc:.4f} ({cached_correct}/{cached_seen})")
+        print(f"[cache] cached model accuracy on requested rows={cached_acc:.4f} ({cached_correct}/{cached_seen})")
 
     rows = cache.to_dict("records") if len(cache) else []
     if not missing:

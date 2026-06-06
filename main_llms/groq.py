@@ -18,7 +18,7 @@ The final line must contain only the marker #### followed by the final answer.""
 @dataclass
 class GroqConfig:
     provider: str
-    model_name: str = "qwen/qwen3-32b"
+    model_name: str = "llama-3.3-70b-versatile"
     temperature: float = 0.0
     max_output_tokens: int = 1024
     request_timeout: int = 120

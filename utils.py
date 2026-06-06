@@ -32,47 +32,88 @@ def fmt_float(x: Any) -> str:
         val = float(x)
     except Exception:
         return safe_name(x)
-    # Compact but stable: 0.10 -> 0p1, 5.0 -> 5.
-    s = f"{val:g}".replace("-", "m").replace(".", "p")
-    return s
+    return f"{val:g}".replace("-", "m").replace(".", "p")
+
+
+def _dataset_name(cfg: Dict[str, Any]) -> str:
+    data = cfg["data"]
+    name = safe_name(data.get("name", "data"))
+    split = data.get("split")
+    return f"{name}-{safe_name(split)}" if split is not None else name
+
+
+def _main_llm_name(cfg: Dict[str, Any]) -> str:
+    main = cfg["main_llm"]
+    return safe_name(main.get("model_name", main.get("provider", "main")))
+
+
+def _score_llm_name(cfg: Dict[str, Any]) -> str:
+    score = cfg.get("score_llm", {}) or {}
+    provider = score.get("provider", "none")
+    if provider in {None, "none"}:
+        return "none"
+    model_name = safe_name(score.get("model_name", provider))
+    # Keep the common Qwen HF name readable and short in file names.
+    model_name = model_name.replace("Qwen-Qwen3-", "qwen3-")
+    return model_name
+
+
+def _budget_variant(cfg: Dict[str, Any]) -> str:
+    policy = cfg["policy"]
+    return f"budget{fmt_float(policy.get('budget_per_batch', 0))}"
+
+
+def _method_params(cfg: Dict[str, Any]) -> list[str]:
+    method = cfg.get("method", "method")
+    policy = cfg["policy"]
+    seed = safe_name(cfg.get("seed", 0))
+
+    if method == "random":
+        return [f"seed{seed}"]
+
+    if method == "ours":
+        return [
+            _score_llm_name(cfg),
+            f"eps{fmt_float(policy.get('epsilon', 0))}",
+            f"alpha{fmt_float(policy.get('alpha_step_size', 0))}",
+            f"theta{fmt_float(policy.get('theta_step_size', 0))}",
+        ]
+
+    # Conservative fallback for future methods.
+    params = [f"seed{seed}"]
+    for key in sorted(policy):
+        if key in {"budget_per_batch", "cost_variant"}:
+            continue
+        params.append(f"{safe_name(key)}{fmt_float(policy[key])}")
+    return params
 
 
 def run_name_from_config(cfg: Dict[str, Any]) -> str:
-    """Build the CSV/state stem from the actual experimental configuration."""
-    data = cfg["data"]
-    main = cfg["main_llm"]
-    score = cfg.get("score_llm", {"provider": "none", "model_name": "none"}) or {}
-    policy = cfg["policy"]
+    """Build the method-run CSV/state stem.
 
+    Required format:
+        {method}_{main_llm}_{dataset}_{budget variant}_{method params}
+
+    The number of requested examples is intentionally excluded, so a run on the
+    first 100 examples can be extended to 400 examples using the same CSV/state.
+    """
     parts = [
-        safe_name(cfg["method"]),
-        f"data-{safe_name(data.get('name', 'data'))}-{safe_name(data.get('split', 'split'))}",
-        f"n{safe_name(data.get('max_examples', 'all'))}",
-        f"main-{safe_name(main.get('provider', 'main'))}-{safe_name(main.get('model_name', 'model'))}",
-        f"prompt-{safe_name(main.get('prompt_version', 'default'))}",
-        f"score-{safe_name(score.get('provider', 'none'))}-{safe_name(score.get('model_name', 'none'))}",
-        f"cost-{safe_name(policy.get('cost_variant', 'constant'))}",
-        f"eps{fmt_float(policy.get('epsilon', 0))}",
-        f"budget{fmt_float(policy.get('budget_per_batch', 0))}",
-        f"seed{safe_name(cfg.get('seed', 0))}",
+        safe_name(cfg.get("method", "method")),
+        _main_llm_name(cfg),
+        _dataset_name(cfg),
+        _budget_variant(cfg),
     ]
-    return "__".join(parts)
+    parts.extend(_method_params(cfg))
+    return "_".join(parts)
 
 
 def generation_cache_name(cfg: Dict[str, Any]) -> str:
-    data = cfg["data"]
-    main = cfg["main_llm"]
-    parts = [
-        "gen",
-        safe_name(data.get("name", "data")),
-        safe_name(data.get("split", "split")),
-        f"n{safe_name(data.get('max_examples', 'all'))}",
-        safe_name(main.get("provider", "main")),
-        safe_name(main.get("model_name", "model")),
-        f"prompt{safe_name(main.get('prompt_version', 'default'))}",
-        f"temp{fmt_float(main.get('temperature', 0))}",
-    ]
-    return "__".join(parts) + ".csv"
+    """Build the shared main-LLM generation cache name.
+
+    This cache stores only main-model generations keyed by example_id. It is
+    independent of the method, score LLM, max_examples, and budget.
+    """
+    return f"gen_{_main_llm_name(cfg)}_{_dataset_name(cfg)}.csv"
 
 
 def sigmoid(x):
