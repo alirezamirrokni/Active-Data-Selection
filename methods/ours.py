@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Any, Dict, Tuple
 
 import numpy as np
@@ -14,42 +16,116 @@ class OursSelection:
     def __init__(self, cfg: Dict[str, Any], score_llm, state: Dict[str, Any] | None = None):
         if score_llm is None:
             raise ValueError("OursSelection requires a score_llm.")
+
         self.cfg = cfg
         self.score_llm = score_llm
         self.policy = cfg["policy"]
+
         state = state or {}
+
+        self.seed = int(cfg.get("seed", 0))
         self.alpha = float(state.get("alpha", self.policy.get("initial_alpha", 0.0)))
+
         theta = state.get("theta")
         self.theta = None if theta is None else np.array(theta, dtype=np.float32)
 
     def _ensure_theta(self, dim: int) -> None:
-        if self.theta is None:
+        """Initialize theta once the feature dimension is known."""
+        if self.theta is not None:
+            return
+
+        init_scale = float(self.policy.get("theta_init_scale", 0.0))
+
+        if init_scale > 0:
+            rng = np.random.default_rng(self.seed + 1729)
+            self.theta = rng.normal(loc=0.0, scale=init_scale, size=dim).astype(np.float32)
+        else:
             self.theta = np.zeros(dim, dtype=np.float32)
-
-    @staticmethod
-    def _choose_beta(eta: np.ndarray, costs: np.ndarray, alpha: float, budget: float) -> float:
-        def selected_cost(beta: float) -> float:
-            return float(costs[eta > alpha + beta * costs].sum())
-
-        if selected_cost(0.0) <= budget + 1e-12:
-            return 0.0
-
-        lo, hi = 0.0, 1.0
-        while selected_cost(hi) > budget + 1e-12:
-            hi *= 2.0
-            if hi > 1e6:
-                break
-        for _ in range(60):
-            mid = 0.5 * (lo + hi)
-            if selected_cost(mid) <= budget + 1e-12:
-                hi = mid
-            else:
-                lo = mid
-        return hi
 
     @staticmethod
     def _safe_ratio(num: float, den: float) -> float:
         return 0.0 if den <= 0 else float(num / den)
+
+    @staticmethod
+    def _budgeted_random_selection(costs: np.ndarray, budget: float, rng: np.random.Generator) -> np.ndarray:
+        """Randomly select examples until the budget is exhausted."""
+        n = len(costs)
+        selected = np.zeros(n, dtype=int)
+        spent = 0.0
+
+        order = np.arange(n)
+        rng.shuffle(order)
+
+        for i in order:
+            c = float(costs[i])
+            if c <= 0:
+                continue
+            if spent + c <= budget + 1e-12:
+                selected[i] = 1
+                spent += c
+
+        return selected
+
+    @staticmethod
+    def _budgeted_threshold_selection(
+        eta: np.ndarray,
+        costs: np.ndarray,
+        alpha: float,
+        budget: float,
+        rng: np.random.Generator,
+    ) -> Tuple[np.ndarray, float]:
+        """Select high-score examples under the budget.
+
+        This implements the threshold policy with budget-feasible boundary
+        tie-breaking. The cold-start case is important: if all eta values are
+        equal, strict thresholding can select zero examples. Here, exact ties are
+        shuffled first and then filled up to the budget.
+
+        For constant costs, this is exactly top-budget selection by eta with
+        random tie-breaking. For non-constant costs, it ranks by
+        (eta - alpha) / cost among examples satisfying eta >= alpha.
+        """
+        eta = np.asarray(eta, dtype=float)
+        costs = np.asarray(costs, dtype=float)
+
+        n = len(eta)
+        selected = np.zeros(n, dtype=int)
+        spent = 0.0
+
+        if n == 0 or budget <= 0:
+            return selected, 0.0
+
+        # Only examples with eta >= alpha can lie above or on the threshold
+        # alpha + beta c for some beta >= 0.
+        eligible = np.where((eta >= alpha) & (costs > 0))[0]
+
+        if len(eligible) == 0:
+            return selected, 0.0
+
+        # Shuffle first so exact equal scores are broken randomly.
+        eligible = np.array(eligible, dtype=int)
+        rng.shuffle(eligible)
+
+        ratios = (eta[eligible] - alpha) / np.maximum(costs[eligible], 1e-12)
+
+        # Stable sort preserves the previous random order inside exact ties.
+        order = eligible[np.argsort(-ratios, kind="mergesort")]
+
+        for i in order:
+            c = float(costs[i])
+            if spent + c <= budget + 1e-12:
+                selected[i] = 1
+                spent += c
+
+        if selected.sum() == 0:
+            return selected, 0.0
+
+        # Report a beta value consistent with the selected frontier.
+        selected_idx = np.where(selected == 1)[0]
+        beta = float(np.min((eta[selected_idx] - alpha) / np.maximum(costs[selected_idx], 1e-12)))
+        beta = max(0.0, beta)
+
+        return selected, beta
 
     def process_batch(self, batch_df: pd.DataFrame, t: int) -> Tuple[pd.DataFrame, Dict[str, Any]]:
         features = self.score_llm.encode_rows(batch_df.to_dict("records"))
@@ -57,25 +133,52 @@ class OursSelection:
 
         costs = batch_df["cost"].to_numpy(dtype=float)
         A = batch_df["A"].to_numpy(dtype=float)
+
         budget = float(self.policy["budget_per_batch"])
         epsilon = float(self.policy["epsilon"])
         gamma = float(self.policy["alpha_step_size"])
         theta_lr = float(self.policy["theta_step_size"])
         l2_reg = float(self.policy.get("l2_reg", 0.0))
+        warm_start_batches = int(self.policy.get("warm_start_batches", 0))
+
+        rng = np.random.default_rng(self.seed + 1000003 * int(t))
 
         eta = sigmoid(features @ self.theta).astype(np.float32)
-        beta = self._choose_beta(eta, costs, self.alpha, budget)
-        selected = (eta > self.alpha + beta * costs).astype(int)
+
+        if t < warm_start_batches:
+            selected = self._budgeted_random_selection(costs=costs, budget=budget, rng=rng)
+            beta = 0.0
+            selection_mode = "warm_start"
+        else:
+            selected, beta = self._budgeted_threshold_selection(
+                eta=eta,
+                costs=costs,
+                alpha=self.alpha,
+                budget=budget,
+                rng=rng,
+            )
+            selection_mode = "threshold"
 
         n_sel = float(selected.sum())
-        confirmation_rate = self._safe_ratio(float((selected * (1.0 - A)).sum()), n_sel)
+
+        confirmation_rate = self._safe_ratio(
+            float((selected * (1.0 - A)).sum()),
+            n_sel,
+        )
+
         old_alpha = self.alpha
-        self.alpha = max(0.0, self.alpha + gamma * (confirmation_rate - epsilon))
+
+        self.alpha = max(
+            0.0,
+            self.alpha + gamma * (confirmation_rate - epsilon),
+        )
 
         if n_sel > 0:
             grad = ((selected * (eta - A))[:, None] * features).sum(axis=0) / n_sel
+
             if l2_reg > 0:
                 grad = grad + l2_reg * self.theta
+
             self.theta = (self.theta - theta_lr * grad).astype(np.float32)
 
         out = batch_df.copy()
@@ -83,6 +186,8 @@ class OursSelection:
         out["alpha"] = old_alpha
         out["beta"] = beta
         out["selected"] = selected
+        out["selection_mode"] = selection_mode
+
         return out, self.state_dict()
 
     def state_dict(self) -> Dict[str, Any]:

@@ -41,6 +41,8 @@ policy:
   alpha_step_size: 0.1
   theta_step_size: 0.05
   initial_alpha: 0.0
+  theta_init_scale: 0.01
+  warm_start_batches: 1
   budget_per_batch: 5
   cost_variant: constant
   l2_reg: 0.0
