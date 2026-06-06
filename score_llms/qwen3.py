@@ -7,11 +7,14 @@ class Qwen3ScoreLLM:
     """Frozen Qwen3-family feature model used only for the online score \tilde{eta}."""
 
     def __init__(self, cfg: Dict[str, Any]):
+        from transformers import AutoModelForCausalLM, AutoTokenizer
+
         try:
-            import torch
-            from transformers import AutoModelForCausalLM, AutoTokenizer
-        except Exception as exc:
-            raise ImportError("Install torch and transformers from requirements.txt first.") from exc
+            from transformers import BitsAndBytesConfig
+        except Exception:
+            BitsAndBytesConfig = None
+
+        import torch
 
         self.torch = torch
         self.cfg = cfg
@@ -32,20 +35,46 @@ class Qwen3ScoreLLM:
             self.tokenizer.pad_token = self.tokenizer.eos_token
 
         kwargs = {
-            "cache_dir": cache_dir,
-            "device_map": cfg.get("device_map", "auto"),
+            "device_map": self.device_map,
             "trust_remote_code": True,
         }
-        torch_dtype = cfg.get("torch_dtype", "auto")
-        if torch_dtype != "auto":
-            kwargs["torch_dtype"] = getattr(torch, torch_dtype)
-        else:
+
+        if self.torch_dtype == "auto":
             kwargs["torch_dtype"] = "auto"
+        elif self.torch_dtype in {"float16", "fp16"}:
+            kwargs["torch_dtype"] = torch.float16
+        elif self.torch_dtype in {"bfloat16", "bf16"}:
+            kwargs["torch_dtype"] = torch.bfloat16
+        elif self.torch_dtype in {"float32", "fp32"}:
+            kwargs["torch_dtype"] = torch.float32
 
-        if bool(cfg.get("load_in_4bit", False)):
-            kwargs["load_in_4bit"] = True
+        if self.cache_dir:
+            kwargs["cache_dir"] = self.cache_dir
 
-        self.model = AutoModelForCausalLM.from_pretrained(self.model_name, **kwargs)
+        if self.load_in_4bit:
+            if BitsAndBytesConfig is None:
+                raise ImportError(
+                    "4-bit loading requires a recent transformers installation with "
+                    "BitsAndBytesConfig and bitsandbytes installed."
+                )
+
+            kwargs["quantization_config"] = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_compute_dtype=torch.float16,
+                bnb_4bit_use_double_quant=True,
+                bnb_4bit_quant_type="nf4",
+            )
+
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            self.model_name,
+            trust_remote_code=True,
+            cache_dir=self.cache_dir,
+        )
+
+        self.model = AutoModelForCausalLM.from_pretrained(
+            self.model_name,
+            **kwargs,
+        )
         self.model.eval()
 
     def format_text(self, question: str, model_answer: str) -> str:
