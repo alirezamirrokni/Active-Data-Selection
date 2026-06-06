@@ -89,7 +89,20 @@ def print_run_summary(df: pd.DataFrame) -> None:
     print(f"  budget used       : {spent_total:.2f}/{budget_total:.2f} ({100.0 * budget_used:.1f}%)")
 
 
-def ensure_generations(records: List[Dict[str, Any]], data_wrapper, main_llm, cache_path: Path) -> pd.DataFrame:
+def ensure_generations(
+    records: List[Dict[str, Any]],
+    data_wrapper,
+    main_llm,
+    cache_path: Path,
+    allow_generate: bool = True,
+) -> pd.DataFrame:
+    """Load or create the shared main-LLM generation cache.
+
+    The cache is method-independent. It stores the main model answer and the
+    induced failure label A for each dataset example. If allow_generate=False,
+    this function never calls the main LLM; it only validates that all requested
+    examples are already cached.
+    """
     cache = read_csv_or_empty(cache_path, GEN_COLUMNS)
     target_ids = {int(r["example_id"]) for r in records}
     done_ids = set(cache["example_id"].astype(int).tolist()) if len(cache) else set()
@@ -112,9 +125,18 @@ def ensure_generations(records: List[Dict[str, Any]], data_wrapper, main_llm, ca
     if cached_seen:
         print(f"[cache] cached model accuracy on requested rows={cached_acc:.4f} ({cached_correct}/{cached_seen})")
 
+    if missing and not allow_generate:
+        raise RuntimeError(
+            f"Generation cache is incomplete: {len(missing)} missing examples. "
+            f"Run `python generate_cache.py --config <config>` first, or rerun without `--no_generate`."
+        )
+
     rows = cache.to_dict("records") if len(cache) else []
     if not missing:
         return cache
+
+    if main_llm is None:
+        raise RuntimeError("main_llm is required because generation cache has missing examples.")
 
     seen = cached_seen
     correct = cached_correct
@@ -142,7 +164,6 @@ def ensure_generations(records: List[Dict[str, Any]], data_wrapper, main_llm, ca
         write_csv_atomic(pd.DataFrame(rows, columns=GEN_COLUMNS), cache_path)
 
     return pd.DataFrame(rows, columns=GEN_COLUMNS)
-
 
 def make_batch_rows(
     cfg: Dict[str, Any],
@@ -183,7 +204,7 @@ def make_batch_rows(
     return pd.DataFrame(rows, columns=RUN_COLUMNS)
 
 
-def run(cfg_path: str, reset: bool = False, reset_generations: bool = False) -> None:
+def run(cfg_path: str, reset: bool = False, reset_generations: bool = False, no_generate: bool = False) -> None:
     load_dotenv()
     cfg = load_yaml(cfg_path)
     paths = project_paths(cfg)
@@ -203,8 +224,18 @@ def run(cfg_path: str, reset: bool = False, reset_generations: bool = False) -> 
     records = data_wrapper.load_records()
     batch_size = int(cfg["data"].get("batch_size", 20))
 
-    main_llm = build_main_llm(cfg["main_llm"])
-    gen_cache = ensure_generations(records, data_wrapper, main_llm, paths["generation_cache"])
+    main_llm = None
+    if not no_generate:
+        # The main LLM is built lazily only when generation is allowed. This
+        # lets method-only runs use an existing cache without requiring an API key.
+        main_llm = build_main_llm(cfg["main_llm"])
+    gen_cache = ensure_generations(
+        records,
+        data_wrapper,
+        main_llm,
+        paths["generation_cache"],
+        allow_generate=not no_generate,
+    )
     gen_by_id = gen_cache.set_index("example_id")
 
     run_df = read_csv_or_empty(paths["run_csv"], RUN_COLUMNS)
@@ -280,8 +311,13 @@ def main():
     parser.add_argument("--config", required=True, help="Path to YAML config.")
     parser.add_argument("--reset", action="store_true", help="Delete this config's run CSV/state before running.")
     parser.add_argument("--reset_generations", action="store_true", help="Delete shared main-LLM generation cache too.")
+    parser.add_argument(
+        "--no_generate",
+        action="store_true",
+        help="Never call the main LLM. Require all requested examples to already exist in the generation cache.",
+    )
     args = parser.parse_args()
-    run(args.config, reset=args.reset, reset_generations=args.reset_generations)
+    run(args.config, reset=args.reset, reset_generations=args.reset_generations, no_generate=args.no_generate)
 
 
 if __name__ == "__main__":
