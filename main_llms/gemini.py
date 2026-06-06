@@ -5,14 +5,14 @@ from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
 
-DEFAULT_SYSTEM_PROMPT = """You are a careful GSM8K math solver.
+DEFAULT_SYSTEM_PROMPT = """You are a careful mathematical problem solver.
 
 Hard requirements:
 - Solve the problem accurately.
 - End with exactly one final line in this format:
-#### <number>
+#### <answer>
 
-The final line must contain only the marker #### followed by the numeric answer."""
+The final line must contain only the marker #### followed by the final answer."""
 
 
 @dataclass
@@ -26,7 +26,7 @@ class GeminiConfig:
     retry_sleep: float = 2.0
     min_seconds_between_calls: float = 15.0
     system_prompt: Optional[str] = None
-    prompt_version: str = "gsm8k_answer_format_v3"
+    prompt_version: str = "math500_answer_format_v1"
 
 
 class GeminiLLM:
