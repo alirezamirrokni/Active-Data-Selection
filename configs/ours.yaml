@@ -9,13 +9,14 @@ data:
   max_examples: 200
   batch_size: 20
 main_llm:
-  provider: gemini
-  model_name: gemini-3.5-flash
+  provider: llama_3_3_70b_versatile
+  model_name: llama-3.3-70b-versatile
   temperature: 0.0
   max_output_tokens: 512
   request_timeout: 120
-  retry_attempts: 4
+  retry_attempts: 8
   retry_sleep: 2.0
+  min_seconds_between_calls: 2.5
 score_llm:
   provider: qwen3_8b
   model_name: Qwen/Qwen3-8B
