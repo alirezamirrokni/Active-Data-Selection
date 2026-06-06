@@ -18,7 +18,7 @@ main_llm:
   retry_sleep: 2.0
   min_seconds_between_calls: 2.5
 score_llm:
-  provider: qwen3_8b
+  provider: qwen3
   model_name: Qwen/Qwen3-8B
   max_length: 1024
   encode_batch_size: 4

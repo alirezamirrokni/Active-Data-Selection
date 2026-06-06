@@ -3,8 +3,8 @@ from typing import Any, Dict, List
 import numpy as np
 
 
-class Qwen3EightBScoreLLM:
-    """Frozen Qwen3-8B feature model used only for the online score \tilde{eta}."""
+class Qwen3ScoreLLM:
+    """Frozen Qwen3-family feature model used only for the online score \tilde{eta}."""
 
     def __init__(self, cfg: Dict[str, Any]):
         try:

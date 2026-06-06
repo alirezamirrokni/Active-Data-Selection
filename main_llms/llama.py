@@ -22,7 +22,7 @@ class LlamaConfig:
 
 
 class LlamaLLM:
-    """Llama 3.3 70B Versatile main LLM, served through the Groq API."""
+    """Llama-family main LLM, served through the Groq API."""
 
     def __init__(self, cfg: Dict[str, Any]):
         try:
@@ -107,4 +107,4 @@ class LlamaLLM:
                 )
                 time.sleep(wait)
 
-        raise RuntimeError(f"Llama 3.3 70B Versatile call failed after retries: {last_err}")
+        raise RuntimeError(f"Llama call failed after retries: {last_err}")
