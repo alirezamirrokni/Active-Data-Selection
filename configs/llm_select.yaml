@@ -1,12 +1,14 @@
 method: llm_select
 seed: 7
 output_dir: outputs
+
 data:
   name: math500
   hf_name: HuggingFaceH4/MATH-500
   split: test
   batch_size: 10
   num_batches: 200
+
 main_llm:
   provider: groq
   model_name: llama-3.3-70b-versatile
@@ -17,6 +19,7 @@ main_llm:
   retry_sleep: 2.0
   min_seconds_between_calls: 2.5
   prompt_version: math500_answer_format_mathverify_v1
+
 selector_llm:
   provider: groq
   model_name: llama-3.3-70b-versatile
@@ -26,15 +29,30 @@ selector_llm:
   retry_attempts: 8
   retry_sleep: 2.0
   min_seconds_between_calls: 2.5
-score_model:
-  provider: gemini_embedding_2
-  model_name: gemini-embedding-2
-  output_dimensionality: 768
-  encode_batch_size: 8
-  normalize_features: true
-  min_seconds_between_calls: 0.25
-  retry_attempts: 8
-  retry_sleep: 2.0
+  system_prompt: |
+    You are an expert review-selection system.
+    Your only task is to choose which model-generated answers should be sent for human correction.
+    Return only valid JSON. Do not solve the problems. Do not include explanations.
+
 policy:
   budget_per_batch: 5
   cost_variant: constant
+  prompt: |
+    You are selecting examples for human review.
+
+    You will receive a batch of model-generated math answers. Select the items most likely to contain an error and therefore most worth sending to a human corrector.
+
+    Rules:
+    - Select at most {max_items} examples.
+    - Respect the total budget {budget}. Each item has a listed cost.
+    - Use only the problem and the model answer.
+    - Do not use or assume the gold answer.
+    - Prefer examples with suspicious reasoning, arithmetic mistakes, missing final answers, format violations, or unsupported conclusions.
+    - Return only valid JSON in exactly this format:
+      {{"selected_indices": [0, 3, 4]}}
+    - Do not include explanations.
+    - Do not include markdown.
+    - Do not include any text outside the JSON object.
+
+    Batch:
+    {items}
