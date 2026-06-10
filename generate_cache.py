@@ -1,11 +1,10 @@
 import argparse
-from pathlib import Path
 
 from dotenv import load_dotenv
 
 from data_wrappers import build_data_wrapper
 from main_llms import build_main_llm
-from run_experiment import ensure_generations
+from run_experiment import ensure_generations, flatten_batches, sample_batches
 from utils import load_yaml, project_paths
 
 
@@ -29,11 +28,17 @@ def main() -> None:
     print(f"[generate] cache={paths['generation_cache']}")
     print(f"[generate] main_llm={cfg['main_llm'].get('model_name')}")
     print(f"[generate] dataset={cfg['data'].get('name')} split={cfg['data'].get('split')}")
+    print(
+        f"[generate] sampled batches={cfg['data'].get('num_batches')} "
+        f"batch_size={cfg['data'].get('batch_size')} replacement=True"
+    )
 
     data_wrapper = build_data_wrapper(cfg["data"])
-    records = data_wrapper.load_records()
+    records_pool = data_wrapper.load_records()
+    batches = sample_batches(records_pool, cfg)
+    sampled_records = flatten_batches(batches)
     main_llm = build_main_llm(cfg["main_llm"])
-    ensure_generations(records, data_wrapper, main_llm, paths["generation_cache"], allow_generate=True)
+    ensure_generations(sampled_records, data_wrapper, main_llm, paths["generation_cache"], allow_generate=True)
     print(f"[done] generation cache ready: {paths['generation_cache']}")
 
 

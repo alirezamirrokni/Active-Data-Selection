@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 
 
-class Qwen3ScoreLLM:
+class Qwen3ScoreModel:
     """Frozen Qwen3-family feature model used only for the online score \\tilde{eta}."""
 
     def __init__(self, cfg: Dict[str, Any]):
@@ -47,7 +47,7 @@ class Qwen3ScoreLLM:
         if self.pooling not in {"mean", "last"}:
             raise ValueError(f"Unknown pooling='{self.pooling}'. Use 'mean' or 'last'.")
 
-        print(f"[score_llm] loading frozen feature model: {self.model_name}")
+        print(f"[score_model] loading frozen feature model: {self.model_name}")
 
         self.tokenizer = AutoTokenizer.from_pretrained(
             self.model_name,
@@ -115,7 +115,7 @@ class Qwen3ScoreLLM:
             self.hidden_size = None
 
         print(
-            "[score_llm] loaded "
+            "[score_model] loaded "
             f"model={self.model_name} "
             f"pooling={self.pooling} "
             f"max_length={self.max_length} "
@@ -212,7 +212,7 @@ class Qwen3ScoreLLM:
 
                 if "out of memory" in message and batch_size > 1:
                     print(
-                        f"[score_llm] CUDA OOM with encode_batch_size={batch_size}; "
+                        f"[score_model] CUDA OOM with encode_batch_size={batch_size}; "
                         f"retrying with batch_size={max(1, batch_size // 2)}"
                     )
                     self._clear_memory()

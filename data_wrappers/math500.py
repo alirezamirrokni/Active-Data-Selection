@@ -180,10 +180,6 @@ class Math500Wrapper:
             self.cfg.get("hf_name", "HuggingFaceH4/MATH-500"),
             split=self.cfg.get("split", "test"),
         )
-        max_examples = self.cfg.get("max_examples")
-        if max_examples is not None:
-            ds = ds.select(range(min(int(max_examples), len(ds))))
-
         records = []
         for idx, row in enumerate(ds):
             problem = row.get("problem") or row.get("question") or row.get("input")

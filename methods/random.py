@@ -7,9 +7,9 @@ import pandas as pd
 class RandomSelection:
     """Random budget-feasible selection baseline."""
 
-    needs_score_llm = False
+    needs_score_model = False
 
-    def __init__(self, cfg: Dict[str, Any], score_llm=None, state: Dict[str, Any] | None = None):
+    def __init__(self, cfg: Dict[str, Any], score_model=None, state: Dict[str, Any] | None = None):
         self.cfg = cfg
         self.policy = cfg["policy"]
         self.seed = int(cfg.get("seed", 0))

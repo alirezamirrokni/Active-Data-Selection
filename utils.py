@@ -20,7 +20,6 @@ def ensure_dir(path: str | Path) -> Path:
 
 
 def safe_name(name: Any) -> str:
-    """Convert config values into short filesystem-safe fragments."""
     text = str(name)
     text = text.replace("/", "-")
     text = re.sub(r"[^A-Za-z0-9_.-]+", "_", text)
@@ -47,15 +46,23 @@ def _main_llm_name(cfg: Dict[str, Any]) -> str:
     return safe_name(main.get("model_name", main.get("provider", "main")))
 
 
-def _score_llm_name(cfg: Dict[str, Any]) -> str:
-    score = cfg.get("score_llm", {}) or {}
+def _score_model_name(cfg: Dict[str, Any]) -> str:
+    score = cfg.get("score_model", {}) or {}
     provider = score.get("provider", "none")
     if provider in {None, "none"}:
         return "none"
     model_name = safe_name(score.get("model_name", provider))
-    # Keep the common Qwen HF name readable and short in file names.
     model_name = model_name.replace("Qwen-Qwen3-", "qwen3-")
+    model_name = model_name.replace("gemini-embedding-2", "gemini-emb2")
     return model_name
+
+
+def _selector_llm_name(cfg: Dict[str, Any]) -> str:
+    selector = cfg.get("selector_llm", {}) or {}
+    provider = selector.get("provider", "none")
+    if provider in {None, "none"}:
+        return "none"
+    return safe_name(selector.get("model_name", provider))
 
 
 def _budget_variant(cfg: Dict[str, Any]) -> str:
@@ -73,13 +80,18 @@ def _method_params(cfg: Dict[str, Any]) -> list[str]:
 
     if method == "ours":
         return [
-            _score_llm_name(cfg),
+            _score_model_name(cfg),
             f"eps{fmt_float(policy.get('epsilon', 0))}",
             f"alpha{fmt_float(policy.get('alpha_step_size', 0))}",
             f"theta{fmt_float(policy.get('theta_step_size', 0))}",
         ]
 
-    # Conservative fallback for future methods.
+    if method == "llm_select":
+        return [
+            _selector_llm_name(cfg),
+            f"seed{seed}",
+        ]
+
     params = [f"seed{seed}"]
     for key in sorted(policy):
         if key in {"budget_per_batch", "cost_variant"}:
@@ -91,11 +103,11 @@ def _method_params(cfg: Dict[str, Any]) -> list[str]:
 def run_name_from_config(cfg: Dict[str, Any]) -> str:
     """Build the method-run CSV/state stem.
 
-    Required format:
+    Format:
         {method}_{main_llm}_{dataset}_{budget variant}_{method params}
 
-    The number of requested examples is intentionally excluded, so a run on the
-    first 100 examples can be extended to 400 examples using the same CSV/state.
+    The number of batches is intentionally excluded, so a run can be extended
+    by increasing data.num_batches and rerunning without changing the output file.
     """
     parts = [
         safe_name(cfg.get("method", "method")),
@@ -110,8 +122,8 @@ def run_name_from_config(cfg: Dict[str, Any]) -> str:
 def generation_cache_name(cfg: Dict[str, Any]) -> str:
     """Build the shared main-LLM generation cache name.
 
-    This cache stores only main-model generations keyed by example_id. It is
-    independent of the method, score LLM, max_examples, and budget.
+    This cache stores main-model generations keyed by example_id. It is
+    independent of the method, score model, number of batches, and budget.
     """
     return f"gen_{_main_llm_name(cfg)}_{_dataset_name(cfg)}.csv"
 

@@ -2,6 +2,7 @@ import argparse
 from pathlib import Path
 from typing import Any, Dict, List
 
+import numpy as np
 import pandas as pd
 from dotenv import load_dotenv
 from tqdm import tqdm
@@ -10,7 +11,7 @@ from data_wrappers import build_data_wrapper
 from main_llms import build_main_llm
 from methods import build_method
 from methods.costs import compute_cost
-from score_llms import build_score_llm
+from score_models import build_score_model
 from utils import load_json, load_yaml, project_paths, read_csv_or_empty, save_json_atomic, write_csv_atomic
 
 
@@ -28,6 +29,7 @@ RUN_COLUMNS = [
     "config",
     "method",
     "t",
+    "batch_pos",
     "example_id",
     "question",
     "gold_answer",
@@ -44,18 +46,41 @@ RUN_COLUMNS = [
     "epsilon",
     "main_llm_provider",
     "main_llm",
-    "score_llm_provider",
-    "score_llm",
+    "score_model_provider",
+    "score_model",
+    "selector_llm_provider",
+    "selector_llm",
 ]
-
 
 
 def _safe_div(num: float, den: float) -> float:
     return 0.0 if den <= 0 else float(num / den)
 
 
+def sample_batches(records: List[Dict[str, Any]], cfg: Dict[str, Any]) -> List[List[Dict[str, Any]]]:
+    """Sample online batches with replacement from the dataset pool."""
+    if not records:
+        raise RuntimeError("Dataset wrapper returned no records.")
+
+    data_cfg = cfg["data"]
+    batch_size = int(data_cfg.get("batch_size", 10))
+    num_batches = int(data_cfg.get("num_batches", 200))
+    if batch_size <= 0:
+        raise ValueError("data.batch_size must be positive.")
+    if num_batches <= 0:
+        raise ValueError("data.num_batches must be positive.")
+
+    seed = int(data_cfg.get("sample_seed", cfg.get("seed", 0)))
+    rng = np.random.default_rng(seed)
+    indices = rng.choice(len(records), size=(num_batches, batch_size), replace=True)
+    return [[records[int(i)] for i in row] for row in indices]
+
+
+def flatten_batches(batches: List[List[Dict[str, Any]]]) -> List[Dict[str, Any]]:
+    return [rec for batch in batches for rec in batch]
+
+
 def print_run_summary(df: pd.DataFrame) -> None:
-    """Print compact end-of-run metrics from the saved run CSV."""
     if df is None or len(df) == 0:
         print("[summary] no rows available")
         return
@@ -80,7 +105,8 @@ def print_run_summary(df: pd.DataFrame) -> None:
     budget_used = _safe_div(spent_total, budget_total)
 
     print("\n[summary]")
-    print(f"  examples          : {n}")
+    print(f"  rows              : {n}")
+    print(f"  unique examples   : {df['example_id'].nunique()}")
     print(f"  model accuracy    : {model_accuracy:.4f} ({model_correct}/{n})")
     print(f"  selected          : {n_selected}")
     print(f"  unselected        : {n_unselected}")
@@ -98,36 +124,41 @@ def ensure_generations(
 ) -> pd.DataFrame:
     """Load or create the shared main-LLM generation cache.
 
-    The cache is method-independent. It stores the main model answer and the
-    induced failure label A for each dataset example. If allow_generate=False,
-    this function never calls the main LLM; it only validates that all requested
-    examples are already cached.
+    The requested records may contain repeated example_ids because online batches
+    are sampled with replacement. The generation cache remains example-level, so
+    each unique example_id is generated at most once for a given main LLM/dataset.
     """
     cache = read_csv_or_empty(cache_path, GEN_COLUMNS)
+    if len(cache):
+        cache = cache.drop_duplicates("example_id", keep="last")
+
     target_ids = {int(r["example_id"]) for r in records}
     done_ids = set(cache["example_id"].astype(int).tolist()) if len(cache) else set()
     done_target_ids = done_ids.intersection(target_ids)
-    missing = [r for r in records if int(r["example_id"]) not in done_ids]
 
-    if len(cache):
-        cache_relevant = cache[cache["example_id"].astype(int).isin(target_ids)]
-    else:
-        cache_relevant = cache
+    missing_by_id: Dict[int, Dict[str, Any]] = {}
+    for r in records:
+        ex_id = int(r["example_id"])
+        if ex_id not in done_ids and ex_id not in missing_by_id:
+            missing_by_id[ex_id] = r
+    missing = list(missing_by_id.values())
+
+    cache_relevant = cache[cache["example_id"].astype(int).isin(target_ids)] if len(cache) else cache
     cached_seen = len(cache_relevant)
     cached_correct = int((1 - cache_relevant["A"].astype(int)).sum()) if len(cache_relevant) else 0
     cached_acc = _safe_div(cached_correct, cached_seen)
 
     print(f"[cache] generation cache: {cache_path}")
     print(
-        f"[cache] cached_total={len(cache)} loaded_for_this_run={len(done_target_ids)} "
-        f"missing={len(missing)} requested={len(records)}"
+        f"[cache] cached_total={len(cache)} loaded_unique_for_this_run={len(done_target_ids)} "
+        f"missing_unique={len(missing)} requested_rows={len(records)} requested_unique={len(target_ids)}"
     )
     if cached_seen:
-        print(f"[cache] cached model accuracy on requested rows={cached_acc:.4f} ({cached_correct}/{cached_seen})")
+        print(f"[cache] cached model accuracy on requested unique rows={cached_acc:.4f} ({cached_correct}/{cached_seen})")
 
     if missing and not allow_generate:
         raise RuntimeError(
-            f"Generation cache is incomplete: {len(missing)} missing examples. "
+            f"Generation cache is incomplete: {len(missing)} missing unique examples. "
             f"Run `python generate_cache.py --config <config>` first, or rerun without `--no_generate`."
         )
 
@@ -161,9 +192,10 @@ def ensure_generations(
                 "A": int(A),
             }
         )
-        write_csv_atomic(pd.DataFrame(rows, columns=GEN_COLUMNS), cache_path)
+        write_csv_atomic(pd.DataFrame(rows, columns=GEN_COLUMNS).drop_duplicates("example_id", keep="last"), cache_path)
 
-    return pd.DataFrame(rows, columns=GEN_COLUMNS)
+    return pd.DataFrame(rows, columns=GEN_COLUMNS).drop_duplicates("example_id", keep="last")
+
 
 def make_batch_rows(
     cfg: Dict[str, Any],
@@ -173,13 +205,16 @@ def make_batch_rows(
 ) -> pd.DataFrame:
     rows = []
     policy = cfg["policy"]
-    score_cfg = cfg.get("score_llm", {})
-    for rec in records:
+    score_cfg = cfg.get("score_model", {}) or {}
+    selector_cfg = cfg.get("selector_llm", {}) or {}
+
+    for pos, rec in enumerate(records):
         cached = gen_by_id.loc[int(rec["example_id"])].to_dict()
         row = {
             "config": cfg.get("run_name", cfg["method"]),
             "method": cfg["method"],
-            "t": t,
+            "t": int(t),
+            "batch_pos": int(pos),
             "example_id": int(rec["example_id"]),
             "question": cached["question"],
             "gold_answer": cached["gold_answer"],
@@ -196,8 +231,10 @@ def make_batch_rows(
             "epsilon": float(policy.get("epsilon", "nan")),
             "main_llm_provider": cfg["main_llm"].get("provider"),
             "main_llm": cfg["main_llm"].get("model_name"),
-            "score_llm_provider": score_cfg.get("provider", "none"),
-            "score_llm": score_cfg.get("model_name", "none"),
+            "score_model_provider": score_cfg.get("provider", "none"),
+            "score_model": score_cfg.get("model_name", "none"),
+            "selector_llm_provider": selector_cfg.get("provider", "none"),
+            "selector_llm": selector_cfg.get("model_name", "none"),
         }
         row["cost"] = compute_cost(row, policy.get("cost_variant", "constant"))
         rows.append(row)
@@ -221,70 +258,63 @@ def run(cfg_path: str, reset: bool = False, reset_generations: bool = False, no_
     print(f"[run] run csv={paths['run_csv']}")
 
     data_wrapper = build_data_wrapper(cfg["data"])
-    records = data_wrapper.load_records()
-    batch_size = int(cfg["data"].get("batch_size", 20))
+    records_pool = data_wrapper.load_records()
+    batches = sample_batches(records_pool, cfg)
+    sampled_records = flatten_batches(batches)
 
     main_llm = None
     if not no_generate:
-        # The main LLM is built lazily only when generation is allowed. This
-        # lets method-only runs use an existing cache without requiring an API key.
         main_llm = build_main_llm(cfg["main_llm"])
     gen_cache = ensure_generations(
-        records,
+        sampled_records,
         data_wrapper,
         main_llm,
         paths["generation_cache"],
         allow_generate=not no_generate,
     )
-    gen_by_id = gen_cache.set_index("example_id")
+    gen_by_id = gen_cache.drop_duplicates("example_id", keep="last").set_index("example_id")
 
     run_df = read_csv_or_empty(paths["run_csv"], RUN_COLUMNS)
-    done_ids = set(run_df["example_id"].astype(int).tolist()) if len(run_df) else set()
-    if done_ids:
-        print(f"[resume] loaded {len(done_ids)} completed rows")
+    done_batches = set(run_df["t"].astype(int).tolist()) if len(run_df) else set()
+    if done_batches:
+        print(f"[resume] loaded {len(done_batches)} completed batches / {len(run_df)} rows")
 
     state = load_json(paths["state_json"], default={})
     method_state = state.get("method_state", {})
 
-    score_llm = None
+    score_model = None
     if cfg.get("method") == "ours":
-        score_llm = build_score_llm(cfg.get("score_llm", {"provider": "none"}))
-    method = build_method(cfg, score_llm=score_llm, state=method_state)
+        score_model = build_score_model(cfg.get("score_model", {"provider": "none"}))
+    method = build_method(cfg, score_model=score_model, state=method_state)
 
     all_rows = run_df.to_dict("records") if len(run_df) else []
-    n = len(records)
-    batch_starts = list(range(0, n, batch_size))
+    method_pbar = tqdm(range(len(batches)), desc=cfg["run_name"], dynamic_ncols=True)
 
-    method_pbar = tqdm(batch_starts, desc=cfg["run_name"], dynamic_ncols=True)
-    for start in method_pbar:
-        end = min(start + batch_size, n)
-        t = start // batch_size
-        batch_records = records[start:end]
-        ids = [int(r["example_id"]) for r in batch_records]
-
-        if all(i in done_ids for i in ids):
+    for t in method_pbar:
+        if t in done_batches:
             partial_df = pd.DataFrame(all_rows, columns=RUN_COLUMNS) if all_rows else run_df
             if len(partial_df):
                 running_acc = _safe_div(int((1 - partial_df["A"].astype(int)).sum()), len(partial_df))
                 method_pbar.set_postfix(acc=f"{running_acc:.3f}")
             continue
 
+        batch_records = batches[t]
         batch_df = make_batch_rows(cfg, gen_by_id, batch_records, t)
         out_batch, new_method_state = method.process_batch(batch_df, t=t)
         out_batch = out_batch[RUN_COLUMNS]
 
-        # Replace any partial stale rows from this batch, then append the new complete batch.
         existing = pd.DataFrame(all_rows, columns=RUN_COLUMNS) if all_rows else pd.DataFrame(columns=RUN_COLUMNS)
-        existing = existing[~existing["example_id"].astype(str).isin([str(i) for i in ids])]
+        if len(existing):
+            existing = existing[existing["t"].astype(int) != int(t)]
         all_rows = existing.to_dict("records") + out_batch.to_dict("records")
         current_df = pd.DataFrame(all_rows, columns=RUN_COLUMNS)
         write_csv_atomic(current_df, paths["run_csv"])
 
-        done_ids.update(ids)
+        done_batches.add(t)
         save_json_atomic(
             {
                 "config": cfg.get("run_name", cfg["method"]),
-                "next_batch_start": end,
+                "next_batch": int(t) + 1,
                 "method_state": new_method_state,
             },
             paths["state_json"],

@@ -40,10 +40,6 @@ class GSM8KWrapper:
             self.cfg.get("hf_config", "main"),
             split=self.cfg.get("split", "test"),
         )
-        max_examples = self.cfg.get("max_examples")
-        if max_examples is not None:
-            ds = ds.select(range(min(int(max_examples), len(ds))))
-
         records = []
         for idx, row in enumerate(ds):
             gold_final = final_number_from_text(row["answer"])

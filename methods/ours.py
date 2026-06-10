@@ -11,14 +11,14 @@ from utils import sigmoid
 class OursSelection:
     """Our online risk- and budget-aware selection method."""
 
-    needs_score_llm = True
+    needs_score_model = True
 
-    def __init__(self, cfg: Dict[str, Any], score_llm, state: Dict[str, Any] | None = None):
-        if score_llm is None:
-            raise ValueError("OursSelection requires a score_llm.")
+    def __init__(self, cfg: Dict[str, Any], score_model, state: Dict[str, Any] | None = None):
+        if score_model is None:
+            raise ValueError("OursSelection requires a score_model.")
 
         self.cfg = cfg
-        self.score_llm = score_llm
+        self.score_model = score_model
         self.policy = cfg["policy"]
 
         state = state or {}
@@ -128,7 +128,7 @@ class OursSelection:
         return selected, beta
 
     def process_batch(self, batch_df: pd.DataFrame, t: int) -> Tuple[pd.DataFrame, Dict[str, Any]]:
-        features = self.score_llm.encode_rows(batch_df.to_dict("records"))
+        features = self.score_model.encode_rows(batch_df.to_dict("records"))
         self._ensure_theta(features.shape[1])
 
         costs = batch_df["cost"].to_numpy(dtype=float)
