@@ -166,12 +166,29 @@ def save_json_atomic(obj: Dict[str, Any], path: str | Path) -> None:
 
 
 def project_paths(cfg: Dict[str, Any]) -> Dict[str, Path]:
+    """Return standard project paths.
+
+    Generation configs only need the shared generation cache. Method configs also
+    get a method-specific run CSV and state file. This lets us keep a separate
+    configs/generate.yaml with data.max_samples, while method configs use
+    data.batch_size/data.num_batches for online sampling.
+    """
     out = ensure_dir(cfg.get("output_dir", "outputs"))
-    run_stem = run_name_from_config(cfg)
-    return {
+    paths = {
         "output_dir": out,
-        "run_name": run_stem,
         "generation_cache": out / generation_cache_name(cfg),
-        "run_csv": out / f"{run_stem}.csv",
-        "state_json": out / f"{run_stem}_state.json",
     }
+
+    if "method" in cfg and "policy" in cfg:
+        run_stem = run_name_from_config(cfg)
+        paths.update(
+            {
+                "run_name": run_stem,
+                "run_csv": out / f"{run_stem}.csv",
+                "state_json": out / f"{run_stem}_state.json",
+            }
+        )
+    else:
+        paths["run_name"] = None
+
+    return paths
