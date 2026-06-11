@@ -16,8 +16,8 @@ Task:
 You will receive a batch of model-generated math answers. The goal is to select examples that are most likely to contain an error and therefore most worth sending to a human corrector.
 
 Rules:
-- Select at most {max_items} examples.
 - Respect the total budget {budget}. Each item has a listed cost.
+- Select any subset of items whose total cost is at most the budget.
 - Use only the problem and the model answer. Do not assume access to the gold answer.
 - Prefer examples with suspicious reasoning, arithmetic mistakes, missing final answers, format violations, or unsupported conclusions.
 
@@ -30,11 +30,11 @@ Batch:
 
 
 class LLMSelect:
-    """LLM-based batch selection baseline.
+    """LLM-based budgeted batch selection baseline.
 
     This baseline gives the whole batch to a selector LLM and asks it to select
-    at most budget-feasible examples for review. We call it LLM-Select rather
-    than ActiveLLM because it is only a batch selection baseline, not a claim to
+    a budget-feasible subset for review. We call it LLM-Select rather than
+    ActiveLLM because it is only a batch selection baseline, not a claim to
     reproduce a specific prior method.
     """
 
@@ -47,21 +47,6 @@ class LLMSelect:
         selector_cfg = cfg.get("selector_llm") or cfg.get("main_llm")
         self.selector_llm = build_main_llm(selector_cfg)
         self.prompt_template = self.policy.get("prompt", DEFAULT_SELECTOR_PROMPT)
-
-    @staticmethod
-    def _max_items_under_budget(costs: np.ndarray, budget: float) -> int:
-        if len(costs) == 0 or budget <= 0:
-            return 0
-        sorted_costs = np.sort(np.asarray(costs, dtype=float))
-        total = 0.0
-        count = 0
-        for c in sorted_costs:
-            if c <= 0:
-                continue
-            if total + c <= budget + 1e-12:
-                total += float(c)
-                count += 1
-        return count
 
     @staticmethod
     def _truncate(text: str, max_chars: int = 1200) -> str:
@@ -81,11 +66,9 @@ class LLMSelect:
             )
         return "\n---\n".join(chunks)
 
-    def _build_prompt(self, batch_df: pd.DataFrame, budget: float, costs: np.ndarray) -> str:
-        max_items = self._max_items_under_budget(costs, budget)
+    def _build_prompt(self, batch_df: pd.DataFrame, budget: float) -> str:
         return self.prompt_template.format(
             budget=f"{budget:g}",
-            max_items=max_items,
             items=self._format_items(batch_df),
         )
 
@@ -121,6 +104,7 @@ class LLMSelect:
         selected = np.zeros(n, dtype=int)
         spent = 0.0
         seen = set()
+
         for idx in indices:
             if idx in seen or idx < 0 or idx >= n:
                 continue
@@ -131,12 +115,13 @@ class LLMSelect:
                 selected[idx] = 1
                 spent += c
                 seen.add(idx)
+
         return selected
 
     def process_batch(self, batch_df: pd.DataFrame, t: int) -> Tuple[pd.DataFrame, Dict[str, Any]]:
         budget = float(self.policy["budget_per_batch"])
         costs = batch_df["cost"].to_numpy(dtype=float)
-        prompt = self._build_prompt(batch_df, budget, costs)
+        prompt = self._build_prompt(batch_df, budget)
 
         try:
             response = self.selector_llm.generate(prompt)
@@ -151,4 +136,5 @@ class LLMSelect:
         out["alpha"] = np.nan
         out["beta"] = np.nan
         out["selected"] = selected
+
         return out, {}

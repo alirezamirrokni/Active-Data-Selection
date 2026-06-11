@@ -43,11 +43,12 @@ policy:
     You will receive a batch of model-generated math answers. Select the items most likely to contain an error and therefore most worth sending to a human corrector.
 
     Rules:
-    - Select at most {max_items} examples.
     - Respect the total budget {budget}. Each item has a listed cost.
+    - Select any subset of items whose total cost is at most the budget.
     - Use only the problem and the model answer.
     - Do not use or assume the gold answer.
     - Prefer examples with suspicious reasoning, arithmetic mistakes, missing final answers, format violations, or unsupported conclusions.
+    - You may select zero items if none appear worth human correction.
     - Return only valid JSON in exactly this format:
       {{"selected_indices": [0, 3, 4]}}
     - Do not include explanations.
