@@ -166,9 +166,7 @@ def save_metric_plot(metrics: pd.DataFrame, metric_key: str, out_dir: Path) -> N
         x="Round",
         y=y,
         hue="Method",
-        marker="o",
         linewidth=2.0,
-        markersize=4.2,
         errorbar=None,
         ax=ax,
     )
@@ -185,7 +183,13 @@ def save_metric_plot(metrics: pd.DataFrame, metric_key: str, out_dir: Path) -> N
 
     if metric_key == "budget":
         limit = float(metrics["Limit"].iloc[0])
-        ax.axhline(limit, linestyle="--", linewidth=1.3, color="black", label="Limit")
+        ax.axhline(
+            limit,
+            linestyle="--",
+            linewidth=1.3,
+            color="black",
+            label="Limit",
+        )
 
     ax.set_xlabel("Round")
     ax.set_ylabel(meta["ylabel"])
