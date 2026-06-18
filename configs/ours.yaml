@@ -7,7 +7,7 @@ data:
   hf_name: HuggingFaceH4/MATH-500
   split: test
   batch_size: 10
-  num_batches: 200
+  num_batches: 250
 
 main_llm:
   provider: groq
