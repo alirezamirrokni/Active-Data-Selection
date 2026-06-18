@@ -1,7 +1,7 @@
 import argparse
 import re
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Tuple
+from typing import Any, Iterable, List, Tuple
 
 import matplotlib.pyplot as plt
 from matplotlib.transforms import blended_transform_factory
@@ -14,19 +14,16 @@ from utils import safe_name
 PLOT_METRICS = {
     "type_ii": {
         "column": "Cum. Type-II",
-        "ylabel": "Type-II",
         "filename": "type_ii",
         "title": "Type-II error",
     },
     "type_i": {
         "column": "Cum. Type-I",
-        "ylabel": "Type-I",
         "filename": "type_i",
         "title": "Type-I error",
     },
     "budget": {
-        "column": "Cum. Budget",
-        "ylabel": "Budget",
+        "column": "Budget",
         "filename": "budget",
         "title": "Budget",
     },
@@ -156,6 +153,7 @@ def summarize_per_round(df: pd.DataFrame) -> pd.DataFrame:
 
         selected_correct = float((selected * (1 - A)).sum())
         unselected_wrong = float(((1 - selected) * A).sum())
+        used_budget = float((selected * cost).sum())
 
         rows.append(
             {
@@ -167,7 +165,7 @@ def summarize_per_round(df: pd.DataFrame) -> pd.DataFrame:
                 "Round": int(t),
                 "Type-I": safe_div(selected_correct, n_sel),
                 "Type-II": safe_div(unselected_wrong, n_unsel),
-                "Budget": float((selected * cost).sum()),
+                "Budget": used_budget,
                 "Limit": float(g["budget"].iloc[0]),
                 "Selected": n_sel,
                 "Unselected": n_unsel,
@@ -189,7 +187,11 @@ def add_cumulative_metrics(round_df: pd.DataFrame) -> pd.DataFrame:
 
     round_df["Cum. Type-I"] = round_df.groupby(group_cols)["Type-I"].cumsum() / round_index
     round_df["Cum. Type-II"] = round_df.groupby(group_cols)["Type-II"].cumsum() / round_index
-    round_df["Cum. Budget"] = round_df.groupby(group_cols)["Budget"].cumsum() / round_index
+    round_df["Avg. Budget"] = round_df.groupby(group_cols)["Budget"].cumsum() / round_index
+
+    # Backward-compatible alias for summaries produced by older versions of the plotter.
+    # The budget plot itself uses the per-round "Budget" column, not this running average.
+    round_df["Cum. Budget"] = round_df["Avg. Budget"]
 
     round_df["Cum. Selected"] = round_df.groupby(group_cols)["Selected"].cumsum()
     round_df["Cum. Unselected"] = round_df.groupby(group_cols)["Unselected"].cumsum()
@@ -234,10 +236,6 @@ def set_paper_style() -> None:
             "ps.fonttype": 42,
         }
     )
-
-
-def _format_number(value: float) -> str:
-    return f"{value:.3g}"
 
 
 def _pad_ylim_for_reference_line(ax: plt.Axes, y_value: float) -> None:
@@ -298,7 +296,7 @@ def _draw_metric_axis(metrics: pd.DataFrame, metric_key: str, ax: plt.Axes, lege
             color="black",
             label="_nolegend_",
         )
-        _annotate_reference_line(ax, epsilon, rf"$\epsilon={_format_number(epsilon)}$")
+        _annotate_reference_line(ax, epsilon, r"$\epsilon$")
 
     if metric_key == "budget":
         limit = float(metrics["Limit"].iloc[0])
@@ -309,13 +307,26 @@ def _draw_metric_axis(metrics: pd.DataFrame, metric_key: str, ax: plt.Axes, lege
             color="black",
             label="_nolegend_",
         )
-        _annotate_reference_line(ax, limit, f"limit={_format_number(limit)}")
+        _annotate_reference_line(ax, limit, "Limit")
 
     ax.set_xlabel("Round")
     ax.set_ylabel("")
     ax.set_title(meta["title"])
     ax.grid(axis="y", alpha=0.22, linewidth=0.7)
     sns.despine(ax=ax)
+
+
+def _dedupe_legend(handles: Iterable[Any], labels: Iterable[str]) -> Tuple[List[Any], List[str]]:
+    seen = set()
+    out_handles = []
+    out_labels = []
+    for handle, label in zip(handles, labels):
+        if not label or label.startswith("_") or label in seen:
+            continue
+        seen.add(label)
+        out_handles.append(handle)
+        out_labels.append(label)
+    return out_handles, out_labels
 
 
 def save_metric_plot(metrics: pd.DataFrame, metric_key: str, out_dir: Path) -> None:
@@ -332,19 +343,6 @@ def save_metric_plot(metrics: pd.DataFrame, metric_key: str, out_dir: Path) -> N
     for ext in ["pdf", "png"]:
         fig.savefig(out_dir / f"{meta['filename']}.{ext}", bbox_inches="tight")
     plt.close(fig)
-
-
-def _dedupe_legend(handles: Iterable[Any], labels: Iterable[str]) -> Tuple[List[Any], List[str]]:
-    seen = set()
-    out_handles = []
-    out_labels = []
-    for handle, label in zip(handles, labels):
-        if not label or label.startswith("_") or label in seen:
-            continue
-        seen.add(label)
-        out_handles.append(handle)
-        out_labels.append(label)
-    return out_handles, out_labels
 
 
 def save_combined_metric_plot(metrics: pd.DataFrame, out_dir: Path) -> None:
@@ -394,7 +392,7 @@ def print_final_summary(metrics: pd.DataFrame, dataset: str) -> None:
         "Cum. Type-II",
         "Pooled Type-I",
         "Pooled Type-II",
-        "Cum. Budget",
+        "Avg. Budget",
         "Limit",
     ]
 
