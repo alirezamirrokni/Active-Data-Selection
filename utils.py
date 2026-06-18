@@ -52,8 +52,10 @@ def _score_model_name(cfg: Dict[str, Any]) -> str:
     if provider in {None, "none"}:
         return "none"
     model_name = safe_name(score.get("model_name", provider))
-    model_name = model_name.replace("Qwen-Qwen3-", "qwen3-")
-    model_name = model_name.replace("gemini-embedding-2", "gemini-emb2")
+    if model_name == "Qwen-Qwen3-8B":
+        return "qwen8b"
+    model_name = model_name.replace("Qwen-Qwen3-", "qwen8b-")
+    model_name = model_name.replace("Qwen-Qwen", "qwen-")
     return model_name
 
 
@@ -71,7 +73,7 @@ def _budget_variant(cfg: Dict[str, Any]) -> str:
 
 
 def _method_params(cfg: Dict[str, Any]) -> list[str]:
-    method = cfg.get("method", "method")
+    method = str(cfg.get("method", "method")).lower().replace("-", "_")
     policy = cfg["policy"]
     seed = safe_name(cfg.get("seed", 0))
 
@@ -84,6 +86,16 @@ def _method_params(cfg: Dict[str, Any]) -> list[str]:
             f"eps{fmt_float(policy.get('epsilon', 0))}",
             f"alpha{fmt_float(policy.get('alpha_step_size', 0))}",
             f"theta{fmt_float(policy.get('theta_step_size', 0))}",
+        ]
+
+    if method == "ours_llm":
+        selector_name = _selector_llm_name(cfg)
+        if selector_name == "none":
+            selector_name = safe_name((cfg.get("score_llm", {}) or {}).get("model_name", "llama-3.3-70b-versatile"))
+        return [
+            selector_name,
+            f"eps{fmt_float(policy.get('epsilon', 0))}",
+            f"alpha{fmt_float(policy.get('alpha_step_size', 0))}",
         ]
 
     if method == "llm_select":
@@ -110,7 +122,7 @@ def run_name_from_config(cfg: Dict[str, Any]) -> str:
     by increasing data.num_batches and rerunning without changing the output file.
     """
     parts = [
-        safe_name(cfg.get("method", "method")),
+        safe_name(str(cfg.get("method", "method")).lower().replace("-", "_")),
         _main_llm_name(cfg),
         _dataset_name(cfg),
         _budget_variant(cfg),

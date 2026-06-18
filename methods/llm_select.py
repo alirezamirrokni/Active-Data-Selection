@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Tuple
 import numpy as np
 import pandas as pd
 
-from main_llms import build_main_llm
+from models import build_main_llm
 
 
 DEFAULT_SELECTOR_PROMPT = """You are selecting examples for human review.

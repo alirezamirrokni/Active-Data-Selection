@@ -20,7 +20,7 @@ main_llm:
   min_seconds_between_calls: 2.5
 
 score_model:
-  provider: qwen3
+  provider: qwen8b
   model_name: Qwen/Qwen3-8B
   max_length: 1024
   encode_batch_size: 4

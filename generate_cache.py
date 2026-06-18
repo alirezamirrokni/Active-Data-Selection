@@ -3,7 +3,7 @@ import argparse
 from dotenv import load_dotenv
 
 from data_wrappers import build_data_wrapper
-from main_llms import build_main_llm
+from models import build_main_llm
 from run_experiment import ensure_generations
 from utils import load_yaml, project_paths
 

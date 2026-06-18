@@ -8,10 +8,9 @@ from dotenv import load_dotenv
 from tqdm import tqdm
 
 from data_wrappers import build_data_wrapper
-from main_llms import build_main_llm
+from models import build_main_llm, build_score_model
 from methods import build_method
 from methods.costs import compute_cost
-from score_models import build_score_model
 from utils import load_json, load_yaml, project_paths, read_csv_or_empty, save_json_atomic, write_csv_atomic
 
 
@@ -206,7 +205,7 @@ def make_batch_rows(
     rows = []
     policy = cfg["policy"]
     score_cfg = cfg.get("score_model", {}) or {}
-    selector_cfg = cfg.get("selector_llm", {}) or {}
+    selector_cfg = cfg.get("selector_llm", {}) or cfg.get("score_llm", {}) or {}
 
     for pos, rec in enumerate(records):
         cached = gen_by_id.loc[int(rec["example_id"])].to_dict()
@@ -283,7 +282,8 @@ def run(cfg_path: str, reset: bool = False, reset_generations: bool = False, no_
     method_state = state.get("method_state", {})
 
     score_model = None
-    if cfg.get("method") == "ours":
+    method_name = str(cfg.get("method", "")).lower().replace("-", "_")
+    if method_name == "ours":
         score_model = build_score_model(cfg.get("score_model", {"provider": "none"}))
     method = build_method(cfg, score_model=score_model, state=method_state)
 

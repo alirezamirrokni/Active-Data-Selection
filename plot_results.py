@@ -49,6 +49,7 @@ def collect_run_csvs(paths: List[str]) -> pd.DataFrame:
 def pretty_method(name: str) -> str:
     mapping = {
         "ours": "Ours",
+        "ours_llm": "Ours-LLM",
         "random": "Random",
         "llm_select": "LLM-Select",
     }
