@@ -114,6 +114,17 @@ def print_run_summary(df: pd.DataFrame) -> None:
     print(f"  budget used       : {spent_total:.2f}/{budget_total:.2f} ({100.0 * budget_used:.1f}%)")
 
 
+def apply_dataset_llm_defaults(cfg: Dict[str, Any], data_wrapper) -> None:
+    """Attach dataset-specific LLM defaults without storing prompts in YAML configs."""
+    main_cfg = cfg.get("main_llm")
+    if isinstance(main_cfg, dict) and not main_cfg.get("system_prompt"):
+        prompt_getter = getattr(data_wrapper, "main_system_prompt", None)
+        if callable(prompt_getter):
+            system_prompt = prompt_getter()
+            if system_prompt:
+                main_cfg["system_prompt"] = system_prompt
+
+
 def ensure_generations(
     records: List[Dict[str, Any]],
     data_wrapper,
@@ -257,6 +268,7 @@ def run(cfg_path: str, reset: bool = False, reset_generations: bool = False, no_
     print(f"[run] run csv={paths['run_csv']}")
 
     data_wrapper = build_data_wrapper(cfg["data"])
+    apply_dataset_llm_defaults(cfg, data_wrapper)
     records_pool = data_wrapper.load_records()
     batches = sample_batches(records_pool, cfg)
     sampled_records = flatten_batches(batches)
@@ -284,7 +296,9 @@ def run(cfg_path: str, reset: bool = False, reset_generations: bool = False, no_
     score_model = None
     method_name = str(cfg.get("method", "")).lower().replace("-", "_")
     if method_name == "ours":
-        score_model = build_score_model(cfg.get("score_model", {"provider": "none"}))
+        score_cfg = dict(cfg.get("score_model", {"provider": "none"}) or {})
+        score_cfg.setdefault("dataset_name", cfg.get("data", {}).get("name"))
+        score_model = build_score_model(score_cfg)
     method = build_method(cfg, score_model=score_model, state=method_state)
 
     all_rows = run_df.to_dict("records") if len(run_df) else []

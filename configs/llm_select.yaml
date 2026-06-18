@@ -3,9 +3,12 @@ seed: 7
 output_dir: outputs
 
 data:
-  name: math500
-  hf_name: HuggingFaceH4/MATH-500
-  split: test
+  name: triviaqa500
+  hf_name: mandarjoshi/trivia_qa
+  hf_config: rc.nocontext
+  split: validation
+  subset_size: 500
+  subset_seed: 42
   batch_size: 10
   num_batches: 250
 
@@ -13,12 +16,11 @@ main_llm:
   provider: groq
   model_name: llama-3.3-70b-versatile
   temperature: 0.0
-  max_output_tokens: 1024
+  max_output_tokens: 128
   request_timeout: 120
   retry_attempts: 8
   retry_sleep: 2.0
   min_seconds_between_calls: 2.5
-  prompt_version: math500_answer_format_mathverify_v1
 
 selector_llm:
   provider: groq
@@ -29,31 +31,7 @@ selector_llm:
   retry_attempts: 8
   retry_sleep: 2.0
   min_seconds_between_calls: 2.5
-  system_prompt: |
-    You are an expert review-selection system.
-    Your only task is to choose which model-generated answers should be sent for human correction.
-    Return only valid JSON. Do not solve the problems. Do not include explanations.
 
 policy:
   budget_per_batch: 5
   cost_variant: constant
-  prompt: |
-    You are selecting examples for human review.
-
-    You will receive a batch of model-generated math answers. Select the items most likely to contain an error and therefore most worth sending to a human corrector.
-
-    Rules:
-    - Respect the total budget {budget}. Each item has a listed cost.
-    - Select any subset of items whose total cost is at most the budget.
-    - Use only the problem and the model answer.
-    - Do not use or assume the gold answer.
-    - Prefer examples with suspicious reasoning, arithmetic mistakes, missing final answers, format violations, or unsupported conclusions.
-    - You may select zero items if none appear worth human correction.
-    - Return only valid JSON in exactly this format:
-      {{"selected_indices": [0, 3, 4]}}
-    - Do not include explanations.
-    - Do not include markdown.
-    - Do not include any text outside the JSON object.
-
-    Batch:
-    {items}

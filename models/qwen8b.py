@@ -36,10 +36,13 @@ class Qwen8BScoreModel:
         self.load_in_4bit = bool(self.cfg.get("load_in_4bit", True))
         self.load_in_8bit = bool(self.cfg.get("load_in_8bit", False))
 
-        self.prompt_template = self.cfg.get(
-            "prompt_template",
-            "Question:\n{question}\n\nModel answer:\n{model_answer}\n",
+        dataset_name = str(self.cfg.get("dataset_name", "math500")).lower()
+        default_prompt_template = (
+            "Question:\n\n{question}\n\nModel answer:\n\n{model_answer}"
+            if dataset_name == "triviaqa500"
+            else "Problem:\n\n{question}\n\nModel answer:\n\n{model_answer}"
         )
+        self.prompt_template = self.cfg.get("prompt_template", default_prompt_template)
 
         if self.load_in_4bit and self.load_in_8bit:
             raise ValueError("Use only one of load_in_4bit=True or load_in_8bit=True, not both.")

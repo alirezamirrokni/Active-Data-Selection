@@ -38,7 +38,14 @@ def _dataset_name(cfg: Dict[str, Any]) -> str:
     data = cfg["data"]
     name = safe_name(data.get("name", "data"))
     split = data.get("split")
-    return f"{name}-{safe_name(split)}" if split is not None else name
+    base = f"{name}-{safe_name(split)}" if split is not None else name
+
+    if str(data.get("name", "")).lower() == "triviaqa500":
+        subset_size = data.get("subset_size", data.get("max_samples", 500))
+        subset_seed = data.get("subset_seed", 42)
+        base = f"{base}_n{safe_name(subset_size)}_seed{safe_name(subset_seed)}"
+
+    return base
 
 
 def _main_llm_name(cfg: Dict[str, Any]) -> str:

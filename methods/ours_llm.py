@@ -12,12 +12,12 @@ from models import build_main_llm
 from .ours import OursSelection
 
 
-DEFAULT_SCORE_SYSTEM_PROMPT = """You are an expert evaluator of model-generated math answers.
+MATH500_SCORE_SYSTEM_PROMPT = """You are an expert evaluator of model-generated math answers.
 Your task is to estimate whether a human evaluator would need to modify the model answer.
 Return only valid JSON. Do not include explanations, markdown, or extra text."""
 
 
-DEFAULT_SCORE_PROMPT = """Estimate the posterior edit probability for this prompt-response pair.
+MATH500_SCORE_PROMPT = """Estimate the posterior edit probability for this prompt-response pair.
 
 Definition:
 - score = probability in [0, 1] that a human evaluator would modify the model answer.
@@ -38,6 +38,45 @@ Model answer:
 """
 
 
+TRIVIAQA_SCORE_SYSTEM_PROMPT = """You are an expert evaluator of model-generated trivia answers.
+Your task is to estimate whether a human evaluator would need to correct the model's short factual answer.
+Return only valid JSON. Do not include explanations, markdown, or extra text."""
+
+
+TRIVIAQA_SCORE_PROMPT = """Estimate the posterior edit probability for this prompt-response pair.
+
+Definition:
+- score = probability in [0, 1] that a human evaluator would modify the model answer.
+- High score means the answer is likely factually wrong, missing, too vague, over-specific, ambiguous, malformed, or unlikely to exactly match a valid gold answer alias.
+- Low score means the answer is likely a correct short factual answer and would be confirmed without modification.
+
+Rules:
+- Use only the trivia question and the model answer below.
+- Do not assume access to the gold answer.
+- The expected response is a concise answer such as an entity, title, place, date, number, or short phrase.
+- Treat explanations, multiple conflicting answers, unsupported hedging, and non-answer text as evidence that human correction may be needed.
+- Return only valid JSON in exactly this format:
+  {{"score": 0.73}}
+
+Question:
+{question}
+
+Model answer:
+{model_answer}
+"""
+
+
+DEFAULT_SCORE_SYSTEM_PROMPTS = {
+    "math500": MATH500_SCORE_SYSTEM_PROMPT,
+    "triviaqa500": TRIVIAQA_SCORE_SYSTEM_PROMPT,
+}
+
+DEFAULT_SCORE_PROMPTS = {
+    "math500": MATH500_SCORE_PROMPT,
+    "triviaqa500": TRIVIAQA_SCORE_PROMPT,
+}
+
+
 class OursLLMSelection:
     """EDIT thresholding with LLM-estimated edit probabilities.
 
@@ -52,6 +91,7 @@ class OursLLMSelection:
         self.cfg = cfg
         self.policy = cfg["policy"]
         self.seed = int(cfg.get("seed", 0))
+        self.dataset_name = str(cfg.get("data", {}).get("name", "math500")).lower()
 
         state = state or {}
         self.alpha = float(state.get("alpha", self.policy.get("initial_alpha", 0.0)))
@@ -82,11 +122,17 @@ class OursLLMSelection:
         score_llm_cfg.setdefault("retry_sleep", 2.0)
         score_llm_cfg.setdefault("min_seconds_between_calls", 2.5)
         if not score_llm_cfg.get("system_prompt"):
-            score_llm_cfg["system_prompt"] = DEFAULT_SCORE_SYSTEM_PROMPT
+            score_llm_cfg["system_prompt"] = DEFAULT_SCORE_SYSTEM_PROMPTS.get(
+                self.dataset_name,
+                MATH500_SCORE_SYSTEM_PROMPT,
+            )
 
         self.score_llm_cfg = score_llm_cfg
         self.score_llm = build_main_llm(score_llm_cfg)
-        self.prompt_template = self.policy.get("score_prompt", DEFAULT_SCORE_PROMPT)
+        self.prompt_template = self.policy.get("score_prompt") or DEFAULT_SCORE_PROMPTS.get(
+            self.dataset_name,
+            MATH500_SCORE_PROMPT,
+        )
         self.fallback_score = float(self.policy.get("fallback_score", 0.5))
 
     @staticmethod
@@ -105,6 +151,7 @@ class OursLLMSelection:
     def _cache_key(self, row: Dict[str, Any]) -> str:
         payload = {
             "model_name": self.score_llm_cfg.get("model_name"),
+            "system_prompt": self.score_llm_cfg.get("system_prompt"),
             "prompt_template": self.prompt_template,
             "question": str(row.get("question", "")),
             "model_answer": str(row.get("model_answer", "")),

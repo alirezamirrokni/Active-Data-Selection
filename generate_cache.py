@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 
 from data_wrappers import build_data_wrapper
 from models import build_main_llm
-from run_experiment import ensure_generations
+from run_experiment import apply_dataset_llm_defaults, ensure_generations
 from utils import load_yaml, project_paths
 
 
@@ -57,6 +57,7 @@ def main() -> None:
     print(f"[generate] max_samples={cfg['data'].get('max_samples', cfg['data'].get('max_examples', 'all'))}")
 
     data_wrapper = build_data_wrapper(cfg["data"])
+    apply_dataset_llm_defaults(cfg, data_wrapper)
     records_pool = data_wrapper.load_records()
     records = select_generation_records(records_pool, cfg)
 

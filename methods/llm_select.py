@@ -10,23 +10,72 @@ import pandas as pd
 from models import build_main_llm
 
 
-DEFAULT_SELECTOR_PROMPT = """You are selecting examples for human review.
+MATH500_SELECTOR_PROMPT = """You are selecting examples for human review.
 
-Task:
-You will receive a batch of model-generated math answers. The goal is to select examples that are most likely to contain an error and therefore most worth sending to a human corrector.
+You will receive a batch of model-generated math answers. Select the items most likely to contain an error and therefore most worth sending to a human corrector.
 
 Rules:
 - Respect the total budget {budget}. Each item has a listed cost.
 - Select any subset of items whose total cost is at most the budget.
-- Use only the problem and the model answer. Do not assume access to the gold answer.
+- Use only the problem and the model answer.
+- Do not use or assume the gold answer.
 - Prefer examples with suspicious reasoning, arithmetic mistakes, missing final answers, format violations, or unsupported conclusions.
-
-Return only valid JSON in exactly this format:
-{{"selected_indices": [0, 3, 4]}}
+- You may select zero items if none appear worth human correction.
+- Return only valid JSON in exactly this format:
+  {{"selected_indices": [0, 3, 4]}}
+- Do not include explanations.
+- Do not include markdown.
+- Do not include any text outside the JSON object.
 
 Batch:
 {items}
 """
+
+
+TRIVIAQA_SELECTOR_PROMPT = """You are selecting examples for human review.
+
+You will receive a batch of model-generated trivia answers. Select the items most likely to be factually wrong or malformed and therefore most worth sending to a human corrector.
+
+Rules:
+- Respect the total budget {budget}. Each item has a listed cost.
+- Select any subset of items whose total cost is at most the budget.
+- Use only the question and the model answer.
+- Do not use or assume the gold answer.
+- The desired answer is a short factual answer: an entity, title, place, date, number, or short phrase.
+- Prefer examples with likely factual errors, missing answers, multiple conflicting answers, unsupported hedging, non-short-answer formatting, or responses that look too vague to exactly match a valid answer alias.
+- You may select zero items if none appear worth human correction.
+- Return only valid JSON in exactly this format:
+  {{"selected_indices": [0, 3, 4]}}
+- Do not include explanations.
+- Do not include markdown.
+- Do not include any text outside the JSON object.
+
+Batch:
+{items}
+"""
+
+
+
+
+MATH500_SELECTOR_SYSTEM_PROMPT = """You are an expert review-selection system.
+Your only task is to choose which model-generated answers should be sent for human correction.
+Return only valid JSON. Do not solve the problems. Do not include explanations."""
+
+
+TRIVIAQA_SELECTOR_SYSTEM_PROMPT = """You are an expert review-selection system for trivia question answering.
+Your only task is to choose which model-generated answers should be sent for human correction.
+Return only valid JSON. Do not answer the questions. Do not include explanations."""
+
+
+DEFAULT_SELECTOR_SYSTEM_PROMPTS = {
+    "math500": MATH500_SELECTOR_SYSTEM_PROMPT,
+    "triviaqa500": TRIVIAQA_SELECTOR_SYSTEM_PROMPT,
+}
+
+DEFAULT_SELECTOR_PROMPTS = {
+    "math500": MATH500_SELECTOR_PROMPT,
+    "triviaqa500": TRIVIAQA_SELECTOR_PROMPT,
+}
 
 
 class LLMSelect:
@@ -44,9 +93,18 @@ class LLMSelect:
         self.cfg = cfg
         self.policy = cfg["policy"]
         self.seed = int(cfg.get("seed", 0))
-        selector_cfg = cfg.get("selector_llm") or cfg.get("main_llm")
+        self.dataset_name = str(cfg.get("data", {}).get("name", "math500")).lower()
+        selector_cfg = dict(cfg.get("selector_llm") or cfg.get("main_llm"))
+        if not selector_cfg.get("system_prompt"):
+            selector_cfg["system_prompt"] = DEFAULT_SELECTOR_SYSTEM_PROMPTS.get(
+                self.dataset_name,
+                MATH500_SELECTOR_SYSTEM_PROMPT,
+            )
         self.selector_llm = build_main_llm(selector_cfg)
-        self.prompt_template = self.policy.get("prompt", DEFAULT_SELECTOR_PROMPT)
+        self.prompt_template = self.policy.get("prompt") or DEFAULT_SELECTOR_PROMPTS.get(
+            self.dataset_name,
+            MATH500_SELECTOR_PROMPT,
+        )
 
     @staticmethod
     def _truncate(text: str, max_chars: int = 1200) -> str:
@@ -57,11 +115,12 @@ class LLMSelect:
 
     def _format_items(self, batch_df: pd.DataFrame) -> str:
         chunks = []
+        question_label = "Question" if self.dataset_name == "triviaqa500" else "Problem"
         for i, row in batch_df.reset_index(drop=True).iterrows():
             chunks.append(
                 f"Index: {i}\n"
                 f"Cost: {float(row['cost']):g}\n"
-                f"Problem:\n{self._truncate(row['question'], 900)}\n"
+                f"{question_label}:\n{self._truncate(row['question'], 900)}\n"
                 f"Model answer:\n{self._truncate(row['model_answer'], 900)}\n"
             )
         return "\n---\n".join(chunks)
