@@ -23,7 +23,7 @@ PLOT_METRICS = {
         "title": "Type-I error",
     },
     "budget": {
-        "column": "Budget",
+        "column": "Cum. Budget",
         "filename": "budget",
         "title": "Budget",
     },
@@ -187,11 +187,9 @@ def add_cumulative_metrics(round_df: pd.DataFrame) -> pd.DataFrame:
 
     round_df["Cum. Type-I"] = round_df.groupby(group_cols)["Type-I"].cumsum() / round_index
     round_df["Cum. Type-II"] = round_df.groupby(group_cols)["Type-II"].cumsum() / round_index
-    round_df["Avg. Budget"] = round_df.groupby(group_cols)["Budget"].cumsum() / round_index
+    round_df["Cum. Budget"] = round_df.groupby(group_cols)["Budget"].cumsum() / round_index
 
-    # Backward-compatible alias for summaries produced by older versions of the plotter.
-    # The budget plot itself uses the per-round "Budget" column, not this running average.
-    round_df["Cum. Budget"] = round_df["Avg. Budget"]
+    round_df["Avg. Budget"] = round_df["Cum. Budget"]
 
     round_df["Cum. Selected"] = round_df.groupby(group_cols)["Selected"].cumsum()
     round_df["Cum. Unselected"] = round_df.groupby(group_cols)["Unselected"].cumsum()
@@ -392,7 +390,7 @@ def print_final_summary(metrics: pd.DataFrame, dataset: str) -> None:
         "Cum. Type-II",
         "Pooled Type-I",
         "Pooled Type-II",
-        "Avg. Budget",
+        "Cum. Budget",
         "Limit",
     ]
 
