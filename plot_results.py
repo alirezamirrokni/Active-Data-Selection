@@ -45,7 +45,7 @@ def _known_dataset_from_text(text: str) -> str | None:
     """Extract dataset names used by this project from a run/cache stem."""
     text = str(text)
 
-    m = re.search(r"(triviaqa500-[^_]+_n[^_]+_seed[^_]+)", text)
+    m = re.search(r"(popqa500-[^_]+_n[^_]+_seed[^_]+)", text)
     if m:
         return m.group(1)
 

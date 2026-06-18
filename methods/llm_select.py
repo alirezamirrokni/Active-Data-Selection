@@ -32,9 +32,9 @@ Batch:
 """
 
 
-TRIVIAQA_SELECTOR_PROMPT = """You are selecting examples for human review.
+POPQA_SELECTOR_PROMPT = """You are selecting examples for human review.
 
-You will receive a batch of model-generated trivia answers. Select the items most likely to be factually wrong or malformed and therefore most worth sending to a human corrector.
+You will receive a batch of model-generated PopQA answers. Select the items most likely to be factually wrong, missing, malformed, or otherwise worth sending to a human corrector.
 
 Rules:
 - Respect the total budget {budget}. Each item has a listed cost.
@@ -42,7 +42,7 @@ Rules:
 - Use only the question and the model answer.
 - Do not use or assume the gold answer.
 - The desired answer is a short factual answer: an entity, title, place, date, number, or short phrase.
-- Prefer examples with likely factual errors, missing answers, multiple conflicting answers, unsupported hedging, non-short-answer formatting, or responses that look too vague to exactly match a valid answer alias.
+- Prefer examples with likely factual errors, missing answers, multiple conflicting answers, unsupported hedging, non-short-answer formatting, or responses that look too vague to exactly match a valid PopQA answer alias.
 - You may select zero items if none appear worth human correction.
 - Return only valid JSON in exactly this format:
   {{"selected_indices": [0, 3, 4]}}
@@ -55,26 +55,24 @@ Batch:
 """
 
 
-
-
 MATH500_SELECTOR_SYSTEM_PROMPT = """You are an expert review-selection system.
 Your only task is to choose which model-generated answers should be sent for human correction.
 Return only valid JSON. Do not solve the problems. Do not include explanations."""
 
 
-TRIVIAQA_SELECTOR_SYSTEM_PROMPT = """You are an expert review-selection system for trivia question answering.
-Your only task is to choose which model-generated answers should be sent for human correction.
+POPQA_SELECTOR_SYSTEM_PROMPT = """You are an expert review-selection system for PopQA-style factual question answering.
+Your only task is to choose which model-generated short answers should be sent for human correction.
 Return only valid JSON. Do not answer the questions. Do not include explanations."""
 
 
 DEFAULT_SELECTOR_SYSTEM_PROMPTS = {
     "math500": MATH500_SELECTOR_SYSTEM_PROMPT,
-    "triviaqa500": TRIVIAQA_SELECTOR_SYSTEM_PROMPT,
+    "popqa500": POPQA_SELECTOR_SYSTEM_PROMPT,
 }
 
 DEFAULT_SELECTOR_PROMPTS = {
     "math500": MATH500_SELECTOR_PROMPT,
-    "triviaqa500": TRIVIAQA_SELECTOR_PROMPT,
+    "popqa500": POPQA_SELECTOR_PROMPT,
 }
 
 
@@ -115,7 +113,7 @@ class LLMSelect:
 
     def _format_items(self, batch_df: pd.DataFrame) -> str:
         chunks = []
-        question_label = "Question" if self.dataset_name == "triviaqa500" else "Problem"
+        question_label = "Question" if self.dataset_name == "popqa500" else "Problem"
         for i, row in batch_df.reset_index(drop=True).iterrows():
             chunks.append(
                 f"Index: {i}\n"

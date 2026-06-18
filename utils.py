@@ -40,7 +40,7 @@ def _dataset_name(cfg: Dict[str, Any]) -> str:
     split = data.get("split")
     base = f"{name}-{safe_name(split)}" if split is not None else name
 
-    if str(data.get("name", "")).lower() == "triviaqa500":
+    if str(data.get("name", "")).lower() == "popqa500":
         subset_size = data.get("subset_size", data.get("max_samples", 500))
         subset_seed = data.get("subset_seed", 42)
         base = f"{base}_n{safe_name(subset_size)}_seed{safe_name(subset_seed)}"

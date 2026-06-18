@@ -38,20 +38,20 @@ Model answer:
 """
 
 
-TRIVIAQA_SCORE_SYSTEM_PROMPT = """You are an expert evaluator of model-generated trivia answers.
+POPQA_SCORE_SYSTEM_PROMPT = """You are an expert evaluator of model-generated PopQA answers.
 Your task is to estimate whether a human evaluator would need to correct the model's short factual answer.
 Return only valid JSON. Do not include explanations, markdown, or extra text."""
 
 
-TRIVIAQA_SCORE_PROMPT = """Estimate the posterior edit probability for this prompt-response pair.
+POPQA_SCORE_PROMPT = """Estimate the posterior edit probability for this prompt-response pair.
 
 Definition:
 - score = probability in [0, 1] that a human evaluator would modify the model answer.
-- High score means the answer is likely factually wrong, missing, too vague, over-specific, ambiguous, malformed, or unlikely to exactly match a valid gold answer alias.
+- High score means the answer is likely factually wrong, missing, too vague, over-specific, ambiguous, malformed, or unlikely to exactly match a valid PopQA answer alias.
 - Low score means the answer is likely a correct short factual answer and would be confirmed without modification.
 
 Rules:
-- Use only the trivia question and the model answer below.
+- Use only the PopQA question and the model answer below.
 - Do not assume access to the gold answer.
 - The expected response is a concise answer such as an entity, title, place, date, number, or short phrase.
 - Treat explanations, multiple conflicting answers, unsupported hedging, and non-answer text as evidence that human correction may be needed.
@@ -68,12 +68,12 @@ Model answer:
 
 DEFAULT_SCORE_SYSTEM_PROMPTS = {
     "math500": MATH500_SCORE_SYSTEM_PROMPT,
-    "triviaqa500": TRIVIAQA_SCORE_SYSTEM_PROMPT,
+    "popqa500": POPQA_SCORE_SYSTEM_PROMPT,
 }
 
 DEFAULT_SCORE_PROMPTS = {
     "math500": MATH500_SCORE_PROMPT,
-    "triviaqa500": TRIVIAQA_SCORE_PROMPT,
+    "popqa500": POPQA_SCORE_PROMPT,
 }
 
 

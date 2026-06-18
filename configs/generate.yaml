@@ -1,12 +1,13 @@
 output_dir: outputs
 
 data:
-  name: triviaqa500
-  hf_name: mandarjoshi/trivia_qa
-  hf_config: rc.nocontext
-  split: validation
+  name: popqa500
+  hf_name: akariasai/PopQA
+  hf_config: null
+  split: test
   subset_size: 500
   subset_seed: 42
+  subset_strategy: random
   max_samples: 500
 
 main_llm:

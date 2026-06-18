@@ -39,7 +39,7 @@ class Qwen8BScoreModel:
         dataset_name = str(self.cfg.get("dataset_name", "math500")).lower()
         default_prompt_template = (
             "Question:\n\n{question}\n\nModel answer:\n\n{model_answer}"
-            if dataset_name == "triviaqa500"
+            if dataset_name == "popqa500"
             else "Problem:\n\n{question}\n\nModel answer:\n\n{model_answer}"
         )
         self.prompt_template = self.cfg.get("prompt_template", default_prompt_template)
