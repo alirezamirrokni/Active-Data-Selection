@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Tuple
 
 import matplotlib.pyplot as plt
+from matplotlib.transforms import blended_transform_factory
 import pandas as pd
 import seaborn as sns
 
@@ -47,14 +48,10 @@ def _known_dataset_from_text(text: str) -> str | None:
     """Extract dataset names used by this project from a run/cache stem."""
     text = str(text)
 
-    # Current fixed subset naming produced by utils._dataset_name:
-    # triviaqa500-validation_n500_seed42
     m = re.search(r"(triviaqa500-[^_]+_n[^_]+_seed[^_]+)", text)
     if m:
         return m.group(1)
 
-    # Math500 naming produced by utils._dataset_name:
-    # math500-test
     m = re.search(r"(math500-[^_]+)", text)
     if m:
         return m.group(1)
@@ -63,17 +60,7 @@ def _known_dataset_from_text(text: str) -> str | None:
 
 
 def infer_dataset_name(csv_path: Path, df: pd.DataFrame) -> str:
-    """Infer the dataset identifier for a run CSV.
-
-    The run schema intentionally stays compact and older outputs do not contain
-    an explicit dataset column, so we recover the dataset from the run stem. The
-    normal run-name format is
-
-        {method}_{main_llm}_{dataset}_{budget variant}_{method params}.
-
-    The function first uses explicit columns if present, then the config/run
-    stem, and finally known dataset-name patterns.
-    """
+    """Infer the dataset identifier for a run CSV."""
     if "dataset" in df.columns:
         explicit = _first_nonempty(df["dataset"])
         if explicit:
@@ -112,9 +99,6 @@ def infer_dataset_name(csv_path: Path, df: pd.DataFrame) -> str:
                 if dataset:
                     return safe_name(dataset)
 
-        # Fallback for older files whose main model names do not contain
-        # underscores. This is not used for normal current outputs, but makes the
-        # plotter more forgiving when handed hand-renamed CSV files.
         parts = before_budget.split("_", 1)
         if len(parts) == 2 and parts[1]:
             return safe_name(parts[1])
@@ -203,14 +187,10 @@ def add_cumulative_metrics(round_df: pd.DataFrame) -> pd.DataFrame:
     group_cols = ["dataset", "config", "method", "run_file"]
     round_index = round_df.groupby(group_cols).cumcount() + 1
 
-    # Running averages of the per-round ratios. These match the paper's
-    # empirical average-over-rounds definition.
     round_df["Cum. Type-I"] = round_df.groupby(group_cols)["Type-I"].cumsum() / round_index
     round_df["Cum. Type-II"] = round_df.groupby(group_cols)["Type-II"].cumsum() / round_index
     round_df["Cum. Budget"] = round_df.groupby(group_cols)["Budget"].cumsum() / round_index
 
-    # Pooled ratios are useful diagnostics: they pool all selected/unselected
-    # examples observed up to the current round.
     round_df["Cum. Selected"] = round_df.groupby(group_cols)["Selected"].cumsum()
     round_df["Cum. Unselected"] = round_df.groupby(group_cols)["Unselected"].cumsum()
     round_df["Cum. Selected correct"] = round_df.groupby(group_cols)["Selected correct"].cumsum()
@@ -256,6 +236,44 @@ def set_paper_style() -> None:
     )
 
 
+def _format_number(value: float) -> str:
+    return f"{value:.3g}"
+
+
+def _pad_ylim_for_reference_line(ax: plt.Axes, y_value: float) -> None:
+    """Ensure an annotated horizontal reference line is not clipped."""
+    ymin, ymax = ax.get_ylim()
+    if ymin <= y_value <= ymax:
+        return
+
+    span = ymax - ymin
+    if span <= 0:
+        span = max(abs(y_value), 1.0)
+
+    pad = 0.06 * span
+    ymin = min(ymin, y_value - pad)
+    ymax = max(ymax, y_value + pad)
+    ax.set_ylim(ymin, ymax)
+
+
+def _annotate_reference_line(ax: plt.Axes, y_value: float, text: str) -> None:
+    """Place a reference-line label just inside the plotting area, near the y-axis."""
+    _pad_ylim_for_reference_line(ax, y_value)
+    transform = blended_transform_factory(ax.transAxes, ax.transData)
+    ax.text(
+        0.015,
+        y_value,
+        text,
+        transform=transform,
+        ha="left",
+        va="bottom",
+        fontsize=9.5,
+        color="black",
+        bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.75, "pad": 1.0},
+        clip_on=False,
+    )
+
+
 def _draw_metric_axis(metrics: pd.DataFrame, metric_key: str, ax: plt.Axes, legend: bool) -> None:
     meta = PLOT_METRICS[metric_key]
     y = meta["column"]
@@ -278,8 +296,9 @@ def _draw_metric_axis(metrics: pd.DataFrame, metric_key: str, ax: plt.Axes, lege
             linestyle="--",
             linewidth=1.3,
             color="black",
-            label=r"$\epsilon$",
+            label="_nolegend_",
         )
+        _annotate_reference_line(ax, epsilon, rf"$\epsilon={_format_number(epsilon)}$")
 
     if metric_key == "budget":
         limit = float(metrics["Limit"].iloc[0])
@@ -288,11 +307,12 @@ def _draw_metric_axis(metrics: pd.DataFrame, metric_key: str, ax: plt.Axes, lege
             linestyle="--",
             linewidth=1.3,
             color="black",
-            label="Limit",
+            label="_nolegend_",
         )
+        _annotate_reference_line(ax, limit, f"limit={_format_number(limit)}")
 
     ax.set_xlabel("Round")
-    ax.set_ylabel(meta["ylabel"])
+    ax.set_ylabel("")
     ax.set_title(meta["title"])
     ax.grid(axis="y", alpha=0.22, linewidth=0.7)
     sns.despine(ax=ax)
@@ -304,7 +324,7 @@ def save_metric_plot(metrics: pd.DataFrame, metric_key: str, out_dir: Path) -> N
     fig, ax = plt.subplots(figsize=(4.35, 2.85))
     _draw_metric_axis(metrics, metric_key, ax=ax, legend=True)
 
-    handles, labels = ax.get_legend_handles_labels()
+    handles, labels = _dedupe_legend(*ax.get_legend_handles_labels())
     if handles:
         ax.legend(handles, labels, title=None, loc="best")
 
