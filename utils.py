@@ -36,11 +36,18 @@ def fmt_float(x: Any) -> str:
 
 def _dataset_name(cfg: Dict[str, Any]) -> str:
     data = cfg["data"]
-    name = safe_name(data.get("name", "data"))
+    raw_name = str(data.get("name", "data")).lower().replace("-", "_")
+    name_aliases = {
+        "popqa500": "popqa",
+        "mmlu_pro": "mmlupro",
+        "mmlu_pro500": "mmlupro",
+        "mmlupro500": "mmlupro",
+    }
+    name = safe_name(name_aliases.get(raw_name, raw_name))
     split = data.get("split")
     base = f"{name}-{safe_name(split)}" if split is not None else name
 
-    if str(data.get("name", "")).lower() == "popqa500":
+    if name in {"popqa", "mmlupro"}:
         subset_size = data.get("subset_size", data.get("max_samples", 500))
         subset_seed = data.get("subset_seed", 42)
         base = f"{base}_n{safe_name(subset_size)}_seed{safe_name(subset_seed)}"
@@ -53,15 +60,22 @@ def _main_llm_name(cfg: Dict[str, Any]) -> str:
     return safe_name(main.get("model_name", main.get("provider", "main")))
 
 
+def model_data_name_from_config(cfg: Dict[str, Any]) -> str:
+    return f"{_main_llm_name(cfg)}_{_dataset_name(cfg)}"
+
+
 def _score_model_name(cfg: Dict[str, Any]) -> str:
     score = cfg.get("score_model", {}) or {}
     provider = score.get("provider", "none")
     if provider in {None, "none"}:
         return "none"
+    provider_safe = safe_name(str(provider).lower())
+    if provider_safe in {"qwen", "qwen8b"}:
+        return "qwen"
     model_name = safe_name(score.get("model_name", provider))
     if model_name == "Qwen-Qwen3-8B":
-        return "qwen8b"
-    model_name = model_name.replace("Qwen-Qwen3-", "qwen8b-")
+        return "qwen"
+    model_name = model_name.replace("Qwen-Qwen3-", "qwen-")
     model_name = model_name.replace("Qwen-Qwen", "qwen-")
     return model_name
 
@@ -185,15 +199,13 @@ def save_json_atomic(obj: Dict[str, Any], path: str | Path) -> None:
 
 
 def project_paths(cfg: Dict[str, Any]) -> Dict[str, Path]:
-    """Return standard project paths.
-
-    Generation configs only need the shared generation cache. Method configs also
-    get a method-specific run CSV and state file. This lets us keep a separate
-    configs/generate.yaml with data.max_samples, while method configs use
-    data.batch_size/data.num_batches for online sampling.
-    """
-    out = ensure_dir(cfg.get("output_dir", "outputs"))
+    """Return standard project paths under outputs/{main_llm}_{dataset}/."""
+    out_root = ensure_dir(cfg.get("output_dir", "outputs"))
+    model_data = model_data_name_from_config(cfg)
+    out = ensure_dir(out_root / model_data)
     paths = {
+        "output_root": out_root,
+        "model_data_name": model_data,
         "output_dir": out,
         "generation_cache": out / generation_cache_name(cfg),
     }

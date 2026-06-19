@@ -66,14 +66,55 @@ Model answer:
 """
 
 
+MMLUPRO_SCORE_SYSTEM_PROMPT = """You are an expert evaluator of model-generated MMLU-Pro answers.
+Your task is to estimate whether a human evaluator would need to correct the model's multiple-choice answer.
+Return only valid JSON. Do not include explanations, markdown, or extra text."""
+
+
+MMLUPRO_SCORE_PROMPT = """Estimate the posterior edit probability for this prompt-response pair.
+
+Definition:
+- score = probability in [0, 1] that a human evaluator would modify the model answer.
+- High score means the answer is likely the wrong option, not a valid option letter, ambiguous, unsupported, or inconsistent with the question and choices.
+- Low score means the answer is likely the correct single option and would be confirmed without modification.
+
+Rules:
+- Use only the MMLU-Pro question, answer options, and model answer below.
+- Do not assume access to the gold answer.
+- The expected response is one option letter such as A, B, C, ..., or J.
+- Treat missing final answers, multiple conflicting choices, answer text without a clear option letter, and non-answer text as evidence that human correction may be needed.
+- Return only valid JSON in exactly this format:
+  {{"score": 0.73}}
+
+Question and options:
+{question}
+
+Model answer:
+{model_answer}
+"""
+
+
+def _canonical_dataset_name(name: Any) -> str:
+    text = str(name or "math500").lower().replace("-", "_")
+    aliases = {
+        "popqa500": "popqa",
+        "mmlu_pro": "mmlupro",
+        "mmlu_pro500": "mmlupro",
+        "mmlupro500": "mmlupro",
+    }
+    return aliases.get(text, text)
+
+
 DEFAULT_SCORE_SYSTEM_PROMPTS = {
     "math500": MATH500_SCORE_SYSTEM_PROMPT,
-    "popqa500": POPQA_SCORE_SYSTEM_PROMPT,
+    "popqa": POPQA_SCORE_SYSTEM_PROMPT,
+    "mmlupro": MMLUPRO_SCORE_SYSTEM_PROMPT,
 }
 
 DEFAULT_SCORE_PROMPTS = {
     "math500": MATH500_SCORE_PROMPT,
-    "popqa500": POPQA_SCORE_PROMPT,
+    "popqa": POPQA_SCORE_PROMPT,
+    "mmlupro": MMLUPRO_SCORE_PROMPT,
 }
 
 
@@ -91,7 +132,7 @@ class OursLLMSelection:
         self.cfg = cfg
         self.policy = cfg["policy"]
         self.seed = int(cfg.get("seed", 0))
-        self.dataset_name = str(cfg.get("data", {}).get("name", "math500")).lower()
+        self.dataset_name = _canonical_dataset_name(cfg.get("data", {}).get("name", "math500"))
 
         state = state or {}
         self.alpha = float(state.get("alpha", self.policy.get("initial_alpha", 0.0)))

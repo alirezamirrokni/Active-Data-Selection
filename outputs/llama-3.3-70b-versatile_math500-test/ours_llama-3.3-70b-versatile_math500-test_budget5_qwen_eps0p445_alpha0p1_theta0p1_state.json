@@ -1,5 +1,5 @@
 {
-  "config": "ours_llama-3.3-70b-versatile_math500-test_budget5_qwen3-8B_eps0p445_alpha0p1_theta0p1",
+  "config": "ours_llama-3.3-70b-versatile_math500-test_budget5_qwen_eps0p445_alpha0p1_theta0p1",
   "next_batch": 250,
   "method_state": {
     "alpha": 0.5283333333333338,

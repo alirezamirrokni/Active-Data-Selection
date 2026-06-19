@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 
 
-class Qwen8BScoreModel:
+class QwenScoreModel:
     """Frozen Qwen 8B feature model used only for the online score \\tilde{eta}."""
 
     def __init__(self, cfg: Dict[str, Any]):
@@ -36,12 +36,13 @@ class Qwen8BScoreModel:
         self.load_in_4bit = bool(self.cfg.get("load_in_4bit", True))
         self.load_in_8bit = bool(self.cfg.get("load_in_8bit", False))
 
-        dataset_name = str(self.cfg.get("dataset_name", "math500")).lower()
-        default_prompt_template = (
-            "Question:\n\n{question}\n\nModel answer:\n\n{model_answer}"
-            if dataset_name == "popqa500"
-            else "Problem:\n\n{question}\n\nModel answer:\n\n{model_answer}"
-        )
+        dataset_name = str(self.cfg.get("dataset_name", "math500")).lower().replace("-", "_")
+        if dataset_name in {"popqa", "popqa500"}:
+            default_prompt_template = "Question:\n\n{question}\n\nModel answer:\n\n{model_answer}"
+        elif dataset_name in {"mmlupro", "mmlu_pro", "mmlupro500", "mmlu_pro500"}:
+            default_prompt_template = "Multiple-choice question:\n\n{question}\n\nModel answer:\n\n{model_answer}"
+        else:
+            default_prompt_template = "Problem:\n\n{question}\n\nModel answer:\n\n{model_answer}"
         self.prompt_template = self.cfg.get("prompt_template", default_prompt_template)
 
         if self.load_in_4bit and self.load_in_8bit:
@@ -50,7 +51,7 @@ class Qwen8BScoreModel:
         if self.pooling not in {"mean", "last"}:
             raise ValueError(f"Unknown pooling='{self.pooling}'. Use 'mean' or 'last'.")
 
-        print(f"[score_model:qwen8b] loading frozen feature model: {self.model_name}")
+        print(f"[score_model:qwen] loading frozen feature model: {self.model_name}")
 
         self.tokenizer = AutoTokenizer.from_pretrained(
             self.model_name,
@@ -118,7 +119,7 @@ class Qwen8BScoreModel:
             self.hidden_size = None
 
         print(
-            "[score_model:qwen8b] loaded "
+            "[score_model:qwen] loaded "
             f"model={self.model_name} "
             f"pooling={self.pooling} "
             f"max_length={self.max_length} "
@@ -215,7 +216,7 @@ class Qwen8BScoreModel:
 
                 if "out of memory" in message and batch_size > 1:
                     print(
-                        f"[score_model:qwen8b] CUDA OOM with encode_batch_size={batch_size}; "
+                        f"[score_model:qwen] CUDA OOM with encode_batch_size={batch_size}; "
                         f"retrying with batch_size={max(1, batch_size // 2)}"
                     )
                     self._clear_memory()

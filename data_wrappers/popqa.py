@@ -240,8 +240,8 @@ def _load_hf_dataset(hf_name: str, hf_config: Any, split: str):
     return load_dataset(hf_name, hf_config, split=split)
 
 
-class PopQA500Wrapper:
-    """Fixed 500-example PopQA subset for exact-match open-domain QA experiments."""
+class PopQAWrapper:
+    """Fixed-size PopQA subset for exact-match open-domain QA experiments."""
 
     def __init__(self, cfg: Dict[str, Any]):
         self.cfg = cfg
@@ -252,10 +252,10 @@ class PopQA500Wrapper:
     def _select_source_indices(self, ds) -> List[int]:
         n_total = len(ds)
         if self.subset_size <= 0:
-            raise ValueError("data.subset_size must be positive for popqa500.")
+            raise ValueError("data.subset_size must be positive for popqa.")
         if self.subset_size > n_total:
             raise ValueError(
-                f"Requested popqa500 subset_size={self.subset_size}, but split has only {n_total} rows."
+                f"Requested popqa subset_size={self.subset_size}, but split has only {n_total} rows."
             )
 
         if self.subset_strategy in {"random", "shuffle", "sample"}:
@@ -281,7 +281,7 @@ class PopQA500Wrapper:
             return [idx for _, idx in scored[: self.subset_size]]
 
         raise ValueError(
-            f"Unknown popqa500 subset_strategy={self.subset_strategy!r}. "
+            f"Unknown popqa subset_strategy={self.subset_strategy!r}. "
             "Use 'random' or 'longtail'."
         )
 

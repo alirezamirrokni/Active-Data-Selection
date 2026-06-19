@@ -55,6 +55,29 @@ Batch:
 """
 
 
+MMLUPRO_SELECTOR_PROMPT = """You are selecting examples for human review.
+
+You will receive a batch of model-generated MMLU-Pro answers. Each item is a multiple-choice academic or professional reasoning question with several options. Select the items whose model answers are most likely to be wrong, invalid, ambiguous, or otherwise worth sending to a human corrector.
+
+Rules:
+- Respect the total budget {budget}. Each item has a listed cost.
+- Select any subset of items whose total cost is at most the budget.
+- Use only the question, answer options, and model answer.
+- Do not use or assume the gold answer.
+- The desired answer is a single option letter such as A, B, C, ..., or J.
+- Prefer examples with questionable reasoning, answers that name no valid option, multiple conflicting options, unsupported certainty, or a final answer that appears inconsistent with the question and options.
+- You may select zero items if none appear worth human correction.
+- Return only valid JSON in exactly this format:
+  {{"selected_indices": [0, 3, 4]}}
+- Do not include explanations.
+- Do not include markdown.
+- Do not include any text outside the JSON object.
+
+Batch:
+{items}
+"""
+
+
 MATH500_SELECTOR_SYSTEM_PROMPT = """You are an expert review-selection system.
 Your only task is to choose which model-generated answers should be sent for human correction.
 Return only valid JSON. Do not solve the problems. Do not include explanations."""
@@ -65,14 +88,32 @@ Your only task is to choose which model-generated short answers should be sent f
 Return only valid JSON. Do not answer the questions. Do not include explanations."""
 
 
+MMLUPRO_SELECTOR_SYSTEM_PROMPT = """You are an expert review-selection system for MMLU-Pro multiple-choice reasoning.
+Your only task is to choose which model-generated option-letter answers should be sent for human correction.
+Return only valid JSON. Do not solve the questions. Do not include explanations."""
+
+
+def _canonical_dataset_name(name: Any) -> str:
+    text = str(name or "math500").lower().replace("-", "_")
+    aliases = {
+        "popqa500": "popqa",
+        "mmlu_pro": "mmlupro",
+        "mmlu_pro500": "mmlupro",
+        "mmlupro500": "mmlupro",
+    }
+    return aliases.get(text, text)
+
+
 DEFAULT_SELECTOR_SYSTEM_PROMPTS = {
     "math500": MATH500_SELECTOR_SYSTEM_PROMPT,
-    "popqa500": POPQA_SELECTOR_SYSTEM_PROMPT,
+    "popqa": POPQA_SELECTOR_SYSTEM_PROMPT,
+    "mmlupro": MMLUPRO_SELECTOR_SYSTEM_PROMPT,
 }
 
 DEFAULT_SELECTOR_PROMPTS = {
     "math500": MATH500_SELECTOR_PROMPT,
-    "popqa500": POPQA_SELECTOR_PROMPT,
+    "popqa": POPQA_SELECTOR_PROMPT,
+    "mmlupro": MMLUPRO_SELECTOR_PROMPT,
 }
 
 
@@ -91,7 +132,7 @@ class LLMSelect:
         self.cfg = cfg
         self.policy = cfg["policy"]
         self.seed = int(cfg.get("seed", 0))
-        self.dataset_name = str(cfg.get("data", {}).get("name", "math500")).lower()
+        self.dataset_name = _canonical_dataset_name(cfg.get("data", {}).get("name", "math500"))
         selector_cfg = dict(cfg.get("selector_llm") or cfg.get("main_llm"))
         if not selector_cfg.get("system_prompt"):
             selector_cfg["system_prompt"] = DEFAULT_SELECTOR_SYSTEM_PROMPTS.get(
@@ -113,7 +154,12 @@ class LLMSelect:
 
     def _format_items(self, batch_df: pd.DataFrame) -> str:
         chunks = []
-        question_label = "Question" if self.dataset_name == "popqa500" else "Problem"
+        if self.dataset_name == "math500":
+            question_label = "Problem"
+        elif self.dataset_name == "mmlupro":
+            question_label = "Question and options"
+        else:
+            question_label = "Question"
         for i, row in batch_df.reset_index(drop=True).iterrows():
             chunks.append(
                 f"Index: {i}\n"

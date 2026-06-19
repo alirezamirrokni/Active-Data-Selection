@@ -1,15 +1,13 @@
 output_dir: outputs
-
 data:
-  name: popqa500
-  hf_name: akariasai/PopQA
+  name: mmlupro
+  hf_name: TIGER-Lab/MMLU-Pro
   hf_config: null
   split: test
   subset_size: 500
   subset_seed: 42
-  subset_strategy: random
+  subset_strategy: stratified
   max_samples: 500
-
 main_llm:
   provider: groq
   model_name: llama-3.3-70b-versatile

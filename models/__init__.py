@@ -1,6 +1,6 @@
 from .gemini import GeminiLLM
 from .groq import GroqLLM
-from .qwen8b import Qwen8BScoreModel
+from .qwen import QwenScoreModel
 
 
 def build_main_llm(cfg):
@@ -16,6 +16,6 @@ def build_score_model(cfg):
     provider = cfg.get("provider", "none")
     if provider in {None, "none"}:
         return None
-    if provider == "qwen8b":
-        return Qwen8BScoreModel(cfg)
+    if provider in {"qwen", "qwen8b"}:
+        return QwenScoreModel(cfg)
     raise ValueError(f"Unknown score_model.provider: {provider}")

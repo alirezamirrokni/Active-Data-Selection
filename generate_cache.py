@@ -36,7 +36,7 @@ def select_generation_records(records, cfg):
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="configs/generate.yaml", help="Path to generation YAML config.")
+    parser.add_argument("--config", default="configs/llama-3.3-70b-versatile_popqa-test_n500_seed42/generate.yaml", help="Path to generation YAML config.")
     parser.add_argument(
         "--reset_generations",
         action="store_true",

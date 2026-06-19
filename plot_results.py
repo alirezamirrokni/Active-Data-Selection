@@ -31,6 +31,12 @@ PLOT_METRICS = {
 
 
 KNOWN_METHOD_PREFIXES = ("llm_select", "ours_llm", "random", "ours")
+KNOWN_DATASET_PATTERNS = (
+    r"(mmlupro-[^_]+_n[^_]+_seed[^_]+)",
+    r"(popqa-[^_]+_n[^_]+_seed[^_]+)",
+    r"(popqa500-[^_]+_n[^_]+_seed[^_]+)",
+    r"(math500-[^_]+)",
+)
 
 
 def _first_nonempty(series: pd.Series) -> str | None:
@@ -44,15 +50,10 @@ def _first_nonempty(series: pd.Series) -> str | None:
 def _known_dataset_from_text(text: str) -> str | None:
     """Extract dataset names used by this project from a run/cache stem."""
     text = str(text)
-
-    m = re.search(r"(popqa500-[^_]+_n[^_]+_seed[^_]+)", text)
-    if m:
-        return m.group(1)
-
-    m = re.search(r"(math500-[^_]+)", text)
-    if m:
-        return m.group(1)
-
+    for pattern in KNOWN_DATASET_PATTERNS:
+        m = re.search(pattern, text)
+        if m:
+            return m.group(1).replace("popqa500-", "popqa-")
     return None
 
 
@@ -61,13 +62,13 @@ def infer_dataset_name(csv_path: Path, df: pd.DataFrame) -> str:
     if "dataset" in df.columns:
         explicit = _first_nonempty(df["dataset"])
         if explicit:
-            return safe_name(explicit)
+            return safe_name(explicit).replace("popqa500-", "popqa-")
 
-    stem = csv_path.stem
+    stem = csv_path.stem.replace("popqa500-", "popqa-")
     if "config" in df.columns:
         config_name = _first_nonempty(df["config"])
         if config_name:
-            stem = config_name
+            stem = str(config_name).replace("popqa500-", "popqa-")
 
     known = _known_dataset_from_text(stem)
     if known:
@@ -94,13 +95,42 @@ def infer_dataset_name(csv_path: Path, df: pd.DataFrame) -> str:
             if before_budget.startswith(main_prefix):
                 dataset = before_budget[len(main_prefix) :]
                 if dataset:
-                    return safe_name(dataset)
+                    return safe_name(dataset).replace("popqa500-", "popqa-")
 
         parts = before_budget.split("_", 1)
         if len(parts) == 2 and parts[1]:
-            return safe_name(parts[1])
+            return safe_name(parts[1]).replace("popqa500-", "popqa-")
 
     return safe_name("unknown_dataset")
+
+
+def infer_model_data_name(csv_path: Path, df: pd.DataFrame) -> str:
+    """Infer the figure/output group: {main_llm}_{dataset}."""
+    dataset = infer_dataset_name(csv_path, df)
+
+    # If the CSV is already under outputs/{main_llm}_{dataset}/, use the folder.
+    parent = csv_path.parent.name
+    if parent.endswith(dataset) and "_" in parent:
+        return safe_name(parent).replace("popqa500-", "popqa-")
+
+    main_llm = _first_nonempty(df["main_llm"]) if "main_llm" in df.columns else None
+    if main_llm:
+        return f"{safe_name(main_llm)}_{dataset}"
+
+    # Last fallback: parse the run filename.
+    stem = csv_path.stem.replace("popqa500-", "popqa-")
+    known = _known_dataset_from_text(stem)
+    if known and known in stem:
+        prefix = stem.split(known, 1)[0].rstrip("_")
+        for method in KNOWN_METHOD_PREFIXES:
+            method_prefix = method + "_"
+            if prefix.startswith(method_prefix):
+                prefix = prefix[len(method_prefix) :]
+                break
+        if prefix:
+            return safe_name(f"{prefix}_{known}")
+
+    return safe_name(dataset)
 
 
 def collect_run_csvs(paths: List[str]) -> pd.DataFrame:
@@ -108,15 +138,16 @@ def collect_run_csvs(paths: List[str]) -> pd.DataFrame:
 
     for p in paths:
         path = Path(p)
-        csvs = sorted(path.glob("*.csv")) if path.is_dir() else [path]
+        csvs = sorted(path.rglob("*.csv")) if path.is_dir() else [path]
 
         for csv in csvs:
             if csv.name.startswith("gen_") or csv.name.endswith("_metrics.csv"):
                 continue
             df = pd.read_csv(csv)
-            df["run_file"] = csv.stem
+            df["run_file"] = csv.stem.replace("popqa500-", "popqa-")
             df["run_path"] = str(csv)
             df["dataset"] = infer_dataset_name(csv, df)
+            df["model_data"] = infer_model_data_name(csv, df)
             frames.append(df)
 
     if not frames:
@@ -141,9 +172,9 @@ def safe_div(num: float, den: float) -> float:
 
 def summarize_per_round(df: pd.DataFrame) -> pd.DataFrame:
     rows = []
-    group_cols = ["dataset", "config", "method", "run_file", "t"]
+    group_cols = ["model_data", "dataset", "config", "method", "run_file", "t"]
 
-    for (dataset, config, method, run_file, t), g in df.groupby(group_cols, sort=True):
+    for (model_data, dataset, config, method, run_file, t), g in df.groupby(group_cols, sort=True):
         selected = g["selected"].astype(int)
         A = g["A"].astype(int)
         cost = g["cost"].astype(float)
@@ -157,6 +188,7 @@ def summarize_per_round(df: pd.DataFrame) -> pd.DataFrame:
 
         rows.append(
             {
+                "model_data": model_data,
                 "dataset": dataset,
                 "config": config,
                 "method": method,
@@ -179,16 +211,15 @@ def summarize_per_round(df: pd.DataFrame) -> pd.DataFrame:
 
 def add_cumulative_metrics(round_df: pd.DataFrame) -> pd.DataFrame:
     round_df = round_df.sort_values(
-        ["dataset", "config", "method", "run_file", "Round"]
+        ["model_data", "dataset", "config", "method", "run_file", "Round"]
     ).reset_index(drop=True)
 
-    group_cols = ["dataset", "config", "method", "run_file"]
+    group_cols = ["model_data", "dataset", "config", "method", "run_file"]
     round_index = round_df.groupby(group_cols).cumcount() + 1
 
     round_df["Cum. Type-I"] = round_df.groupby(group_cols)["Type-I"].cumsum() / round_index
     round_df["Cum. Type-II"] = round_df.groupby(group_cols)["Type-II"].cumsum() / round_index
     round_df["Cum. Budget"] = round_df.groupby(group_cols)["Budget"].cumsum() / round_index
-
     round_df["Avg. Budget"] = round_df["Cum. Budget"]
 
     round_df["Cum. Selected"] = round_df.groupby(group_cols)["Selected"].cumsum()
@@ -213,13 +244,13 @@ def maybe_add_epsilon(metrics: pd.DataFrame, raw_df: pd.DataFrame) -> pd.DataFra
         metrics["epsilon"] = pd.NA
         return metrics
 
-    eps = raw_df[["dataset", "config", "method", "run_file", "epsilon"]].drop_duplicates()
+    eps = raw_df[["model_data", "dataset", "config", "method", "run_file", "epsilon"]].drop_duplicates()
     eps = eps.dropna(subset=["epsilon"])
     if eps.empty:
         metrics["epsilon"] = pd.NA
         return metrics
 
-    return metrics.merge(eps, on=["dataset", "config", "method", "run_file"], how="left")
+    return metrics.merge(eps, on=["model_data", "dataset", "config", "method", "run_file"], how="left")
 
 
 def set_paper_style() -> None:
@@ -376,10 +407,10 @@ def save_combined_metric_plot(metrics: pd.DataFrame, out_dir: Path) -> None:
     plt.close(fig)
 
 
-def print_final_summary(metrics: pd.DataFrame, dataset: str) -> None:
+def print_final_summary(metrics: pd.DataFrame, model_data: str) -> None:
     final_rows = (
-        metrics.sort_values(["dataset", "config", "method", "run_file", "Round"])
-        .groupby(["dataset", "config", "method", "run_file"], as_index=False)
+        metrics.sort_values(["model_data", "dataset", "config", "method", "run_file", "Round"])
+        .groupby(["model_data", "dataset", "config", "method", "run_file"], as_index=False)
         .tail(1)
     )
 
@@ -395,12 +426,12 @@ def print_final_summary(metrics: pd.DataFrame, dataset: str) -> None:
     ]
 
     print()
-    print(f"[plot] final cumulative summary for {dataset}")
+    print(f"[plot] final cumulative summary for {model_data}")
     print(final_rows[cols].to_string(index=False))
 
 
-def write_dataset_plots(raw_df: pd.DataFrame, root_out_dir: Path, dataset: str) -> None:
-    out_dir = root_out_dir / safe_name(dataset)
+def write_group_plots(raw_df: pd.DataFrame, root_out_dir: Path, model_data: str) -> None:
+    out_dir = root_out_dir / safe_name(model_data)
     out_dir.mkdir(parents=True, exist_ok=True)
 
     per_round = summarize_per_round(raw_df)
@@ -418,7 +449,7 @@ def write_dataset_plots(raw_df: pd.DataFrame, root_out_dir: Path, dataset: str) 
         save_metric_plot(metrics, key, out_dir)
     save_combined_metric_plot(metrics, out_dir)
 
-    print_final_summary(metrics, dataset)
+    print_final_summary(metrics, model_data)
     print(f"[plot] wrote figures to {out_dir}")
 
 
@@ -428,12 +459,12 @@ def main() -> None:
         "--runs",
         nargs="+",
         default=["outputs"],
-        help="Run CSVs or output directories. Directories are scanned for method-run CSV files.",
+        help="Run CSVs or output directories. Directories are scanned recursively for method-run CSV files.",
     )
     parser.add_argument(
         "--out_dir",
         default="figures",
-        help="Root directory for plots. A subdirectory is created for each dataset.",
+        help="Root directory for plots. A subdirectory is created for each {main_llm}_{dataset} pair.",
     )
     args = parser.parse_args()
 
@@ -443,14 +474,14 @@ def main() -> None:
     set_paper_style()
     raw_df = collect_run_csvs(args.runs)
 
-    datasets = sorted(raw_df["dataset"].dropna().unique().tolist())
-    if not datasets:
-        raise RuntimeError("No datasets could be inferred from the run CSV files.")
+    model_data_groups = sorted(raw_df["model_data"].dropna().unique().tolist())
+    if not model_data_groups:
+        raise RuntimeError("No {main_llm}_{dataset} groups could be inferred from the run CSV files.")
 
-    print("[plot] discovered datasets: " + ", ".join(datasets))
-    for dataset in datasets:
-        dataset_df = raw_df[raw_df["dataset"] == dataset].copy()
-        write_dataset_plots(dataset_df, root_out_dir, dataset)
+    print("[plot] discovered groups: " + ", ".join(model_data_groups))
+    for model_data in model_data_groups:
+        group_df = raw_df[raw_df["model_data"] == model_data].copy()
+        write_group_plots(group_df, root_out_dir, model_data)
 
 
 if __name__ == "__main__":
