@@ -1,5 +1,5 @@
 {
   "config": "llm_select_llama-3.3-70b-versatile_popqa500-test_n500_seed42_budget5_llama-3.3-70b-versatile_seed7",
-  "next_batch": 75,
+  "next_batch": 250,
   "method_state": {}
 }
