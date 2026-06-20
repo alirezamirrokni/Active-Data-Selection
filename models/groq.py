@@ -28,6 +28,7 @@ class GroqConfig:
     min_seconds_between_calls: float = 2.5
     system_prompt: Optional[str] = None
     prompt_version: str = "math500_answer_format_v1"
+    reasoning_effort: Optional[str] = None
 
 
 class GroqLLM:
@@ -95,15 +96,18 @@ class GroqLLM:
         for attempt in range(1, self.cfg.retry_attempts + 1):
             try:
                 self._throttle()
-                response = self.client.chat.completions.create(
-                    model=self.cfg.model_name,
-                    messages=[
+                request_kwargs: Dict[str, Any] = {
+                    "model": self.cfg.model_name,
+                    "messages": [
                         {"role": "system", "content": self.system_prompt},
                         {"role": "user", "content": prompt},
                     ],
-                    temperature=self.cfg.temperature,
-                    max_completion_tokens=self.cfg.max_output_tokens,
-                )
+                    "temperature": self.cfg.temperature,
+                    "max_completion_tokens": self.cfg.max_output_tokens,
+                }
+                if self.cfg.reasoning_effort is not None:
+                    request_kwargs["reasoning_effort"] = self.cfg.reasoning_effort
+                response = self.client.chat.completions.create(**request_kwargs)
                 self._last_call_time = time.time()
                 text = response.choices[0].message.content
                 return str(text if text is not None else "").strip()
