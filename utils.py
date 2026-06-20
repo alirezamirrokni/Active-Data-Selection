@@ -57,7 +57,10 @@ def _dataset_name(cfg: Dict[str, Any]) -> str:
 
 def _main_llm_name(cfg: Dict[str, Any]) -> str:
     main = cfg["main_llm"]
-    return safe_name(main.get("model_name", main.get("provider", "main")))
+    # display_name is used for experiment-folder/run naming when the same API
+    # model is run in different modes, e.g. deepseek-v4-flash-thinking vs.
+    # deepseek-v4-flash-nonthinking. The API call still uses model_name.
+    return safe_name(main.get("display_name", main.get("model_name", main.get("provider", "main"))))
 
 
 def model_data_name_from_config(cfg: Dict[str, Any]) -> str:
@@ -85,7 +88,7 @@ def _selector_llm_name(cfg: Dict[str, Any]) -> str:
     provider = selector.get("provider", "none")
     if provider in {None, "none"}:
         return "none"
-    return safe_name(selector.get("model_name", provider))
+    return safe_name(selector.get("display_name", selector.get("model_name", provider)))
 
 
 def _budget_variant(cfg: Dict[str, Any]) -> str:

@@ -1,5 +1,6 @@
 from .gemini import GeminiLLM
 from .groq import GroqLLM
+from .deepseek import DeepSeekLLM
 from .qwen import QwenScoreModel
 
 
@@ -9,6 +10,8 @@ def build_main_llm(cfg):
         return GeminiLLM(cfg)
     if provider == "groq":
         return GroqLLM(cfg)
+    if provider == "deepseek":
+        return DeepSeekLLM(cfg)
     raise ValueError(f"Unknown main_llm.provider: {provider}")
 
 
