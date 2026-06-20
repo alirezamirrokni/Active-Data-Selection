@@ -2,6 +2,7 @@ from .gemini import GeminiLLM
 from .groq import GroqLLM
 from .deepseek import DeepSeekLLM
 from .qwen import QwenScoreModel
+from .gemini_embedding import GeminiEmbedding2ScoreModel
 
 
 def build_main_llm(cfg):
@@ -21,4 +22,6 @@ def build_score_model(cfg):
         return None
     if provider in {"qwen", "qwen8b"}:
         return QwenScoreModel(cfg)
+    if provider in {"gemini_embedding_2", "gemini-embedding-2", "gemini_embedding"}:
+        return GeminiEmbedding2ScoreModel(cfg)
     raise ValueError(f"Unknown score_model.provider: {provider}")

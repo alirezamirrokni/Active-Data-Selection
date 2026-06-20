@@ -19,6 +19,7 @@ The final line must contain only the marker #### followed by the final answer.""
 class GroqConfig:
     provider: str
     model_name: str = "llama-3.3-70b-versatile"
+    display_name: Optional[str] = None
     temperature: float = 0.0
     max_output_tokens: int = 1024
     request_timeout: int = 120
