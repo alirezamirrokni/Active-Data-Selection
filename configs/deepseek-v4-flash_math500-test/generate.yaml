@@ -1,26 +1,19 @@
-method: random
-seed: 7
 output_dir: outputs
 data:
   name: math500
   hf_name: HuggingFaceH4/MATH-500
   split: test
   max_samples: 500
-  batch_size: 10
-  num_batches: 250
 main_llm:
   provider: deepseek
   model_name: deepseek-v4-flash
-  display_name: deepseek-v4-flash-thinking
-  thinking: true
-  thinking_type: enabled
-  reasoning_effort: high
+  display_name: deepseek-v4-flash
+  thinking: false
+  thinking_type: disabled
+  reasoning_effort: null
   temperature: 0.0
-  max_output_tokens: 1024
+  max_output_tokens: 128
   request_timeout: 180
   retry_attempts: 8
   retry_sleep: 2.0
   min_seconds_between_calls: 0.5
-policy:
-  budget_per_batch: 5
-  cost_variant: constant

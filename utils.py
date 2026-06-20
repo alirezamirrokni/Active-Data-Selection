@@ -58,8 +58,8 @@ def _dataset_name(cfg: Dict[str, Any]) -> str:
 def _main_llm_name(cfg: Dict[str, Any]) -> str:
     main = cfg["main_llm"]
     # display_name is used for experiment-folder/run naming when the same API
-    # model is run in different modes, e.g. deepseek-v4-flash-thinking vs.
-    # deepseek-v4-flash-nonthinking. The API call still uses model_name.
+    # model should appear under a stable, publication-facing name. The API call
+    # still uses model_name.
     return safe_name(main.get("display_name", main.get("model_name", main.get("provider", "main"))))
 
 

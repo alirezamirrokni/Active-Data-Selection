@@ -3,6 +3,15 @@ from typing import Any, Dict, List, Optional
 
 from datasets import load_dataset
 
+MATH500_MAIN_SYSTEM_PROMPT = """You are a careful mathematical problem solver.
+
+Hard requirements:
+- Solve the problem accurately.
+- End with exactly one final line in this format:
+#### <answer>
+
+The final line must contain only the marker #### followed by the final answer."""
+
 
 _BOX_COMMANDS = ("\\boxed", "\\fbox")
 
@@ -211,3 +220,7 @@ class Math500Wrapper:
             "End with exactly one final line in this format: #### <answer>\n\n"
             f"Problem:\n{question}"
         )
+
+    @staticmethod
+    def main_system_prompt() -> str:
+        return MATH500_MAIN_SYSTEM_PROMPT

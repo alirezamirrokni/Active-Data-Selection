@@ -11,12 +11,12 @@ data:
 main_llm:
   provider: deepseek
   model_name: deepseek-v4-flash
-  display_name: deepseek-v4-flash-thinking
-  thinking: true
-  thinking_type: enabled
-  reasoning_effort: high
+  display_name: deepseek-v4-flash
+  thinking: false
+  thinking_type: disabled
+  reasoning_effort: null
   temperature: 0.0
-  max_output_tokens: 1024
+  max_output_tokens: 128
   request_timeout: 180
   retry_attempts: 8
   retry_sleep: 2.0
@@ -24,12 +24,12 @@ main_llm:
 selector_llm:
   provider: deepseek
   model_name: deepseek-v4-flash
-  display_name: deepseek-v4-flash-thinking
-  thinking: true
-  thinking_type: enabled
-  reasoning_effort: high
+  display_name: deepseek-v4-flash
+  thinking: false
+  thinking_type: disabled
+  reasoning_effort: null
   temperature: 0.0
-  max_output_tokens: 1024
+  max_output_tokens: 128
   request_timeout: 180
   retry_attempts: 8
   retry_sleep: 2.0

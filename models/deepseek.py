@@ -5,12 +5,14 @@ from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
 
-DEFAULT_SYSTEM_PROMPT = """You are a careful problem solver.
+DEFAULT_SYSTEM_PROMPT = """You are a careful mathematical problem solver.
 
 Hard requirements:
-- Follow the user's requested answer format exactly.
-- Return only the final answer format requested by the task.
-- Do not include unnecessary text."""
+- Solve the problem accurately.
+- End with exactly one final line in this format:
+#### <answer>
+
+The final line must contain only the marker #### followed by the final answer."""
 
 
 @dataclass
@@ -27,10 +29,11 @@ class DeepSeekConfig:
     system_prompt: Optional[str] = None
     prompt_version: str = "default"
     base_url: str = "https://api.deepseek.com"
-    thinking: bool = True
-    thinking_type: str = "enabled"
-    reasoning_effort: str = "high"
+    thinking: bool = False
+    thinking_type: str = "disabled"
+    reasoning_effort: Optional[str] = None
     response_format: Optional[str] = None
+    retry_empty_content: bool = True
 
 
 class DeepSeekLLM:
@@ -113,7 +116,7 @@ class DeepSeekLLM:
         if self.cfg.thinking:
             kwargs["reasoning_effort"] = self.cfg.reasoning_effort
             extra_body["thinking"] = {"type": self.cfg.thinking_type}
-            # DeepSeek thinking mode ignores temperature/top_p/presence/frequency penalties.
+            # Thinking mode ignores temperature/top_p/presence/frequency penalties.
             # We intentionally omit them here to keep calls unambiguous.
         else:
             kwargs["temperature"] = float(self.cfg.temperature)
@@ -137,8 +140,14 @@ class DeepSeekLLM:
                 self._throttle()
                 response = self.client.chat.completions.create(**self._request_kwargs(prompt))
                 self._last_call_time = time.time()
-                text = response.choices[0].message.content
-                return str(text if text is not None else "").strip()
+                text = str(response.choices[0].message.content or "").strip()
+                if self.cfg.retry_empty_content and not text:
+                    finish_reason = getattr(response.choices[0], "finish_reason", None)
+                    raise RuntimeError(
+                        "DeepSeek returned empty message.content"
+                        + (f" (finish_reason={finish_reason})" if finish_reason else "")
+                    )
+                return text
 
             except Exception as exc:
                 last_err = exc
