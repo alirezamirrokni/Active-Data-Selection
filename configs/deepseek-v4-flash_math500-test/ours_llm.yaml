@@ -36,7 +36,7 @@ selector_llm:
   min_seconds_between_calls: 0.5
   response_format: json_object
 policy:
-  epsilon: 0.295
+  epsilon: 0.445
   alpha_step_size: 0.1
   initial_alpha: 0.0
   warm_start_batches: 0

@@ -10,11 +10,11 @@ data:
   max_samples: 500
 main_llm:
   provider: groq
-  model_name: qwen/qwen3-32b
+  model_name: deepseek-r1-distill-qwen-32b
   temperature: 0.0
   max_output_tokens: 128
-  request_timeout: 120
+  request_timeout: 180
   retry_attempts: 8
   retry_sleep: 2.0
-  min_seconds_between_calls: 2.5
-  display_name: qwen-qwen3-32b
+  min_seconds_between_calls: 1.0
+  display_name: deepseek-r1-distill-qwen-32b
