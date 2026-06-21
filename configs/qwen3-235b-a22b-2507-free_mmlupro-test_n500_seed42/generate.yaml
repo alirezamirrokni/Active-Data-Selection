@@ -1,17 +1,17 @@
 output_dir: outputs
 data:
-  name: popqa
-  hf_name: akariasai/PopQA
+  name: mmlupro
+  hf_name: TIGER-Lab/MMLU-Pro
   hf_config: null
   split: test
   subset_size: 500
   subset_seed: 42
-  subset_strategy: random
+  subset_strategy: stratified
   max_samples: 500
 main_llm:
   provider: openrouter
-  model_name: google/gemma-4-31b-it
-  display_name: gemma-4-31b-it
+  model_name: qwen/qwen3-235b-a22b-2507:free
+  display_name: qwen3-235b-a22b-2507-free
   temperature: 0.0
   max_output_tokens: 128
   request_timeout: 180

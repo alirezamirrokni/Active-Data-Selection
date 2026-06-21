@@ -21,7 +21,7 @@ class GroqConfig:
     model_name: str = "llama-3.3-70b-versatile"
     display_name: Optional[str] = None
     temperature: float = 0.0
-    max_output_tokens: int = 1024
+    max_output_tokens: int = 128
     request_timeout: int = 120
     retry_attempts: int = 8
     retry_sleep: float = 2.0
