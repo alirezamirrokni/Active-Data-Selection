@@ -13,8 +13,8 @@ data:
   num_batches: 250
 main_llm:
   provider: openrouter
-  model_name: qwen/qwen3-235b-a22b-2507:free
-  display_name: qwen3-235b-a22b-2507-free
+  model_name: qwen/qwen3-235b-a22b-2507
+  display_name: qwen3-235b-a22b-2507
   temperature: 0.0
   max_output_tokens: 128
   request_timeout: 180
@@ -23,8 +23,8 @@ main_llm:
   min_seconds_between_calls: 0.5
 selector_llm:
   provider: openrouter
-  model_name: qwen/qwen3-235b-a22b-2507:free
-  display_name: qwen3-235b-a22b-2507-free
+  model_name: qwen/qwen3-235b-a22b-2507
+  display_name: qwen3-235b-a22b-2507
   temperature: 0.0
   max_output_tokens: 64
   request_timeout: 180

@@ -18,7 +18,7 @@ The final line must contain only the marker #### followed by the final answer.""
 @dataclass
 class OpenRouterConfig:
     provider: str
-    model_name: str = "qwen/qwen3-235b-a22b-2507:free"
+    model_name: str = "qwen/qwen3-235b-a22b-2507"
     display_name: Optional[str] = None
     temperature: float = 0.0
     max_output_tokens: int = 128

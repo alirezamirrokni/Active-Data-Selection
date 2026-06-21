@@ -2,19 +2,19 @@ method: ours
 seed: 7
 output_dir: outputs
 data:
-  name: popqa
-  hf_name: akariasai/PopQA
+  name: mmlupro
+  hf_name: TIGER-Lab/MMLU-Pro
   hf_config: null
   split: test
   subset_size: 500
   subset_seed: 42
-  subset_strategy: random
+  subset_strategy: stratified
   batch_size: 10
   num_batches: 250
 main_llm:
   provider: openrouter
-  model_name: qwen/qwen3-235b-a22b-2507:free
-  display_name: qwen3-235b-a22b-2507-free
+  model_name: qwen/qwen3-235b-a22b-2507
+  display_name: qwen3-235b-a22b-2507
   temperature: 0.0
   max_output_tokens: 128
   request_timeout: 180
@@ -33,7 +33,7 @@ score_model:
   normalize_features: true
   cache_dir: null
 policy:
-  epsilon: 0.175
+  epsilon: 0.485
   alpha_step_size: 0.1
   theta_step_size: 0.1
   initial_alpha: 0.0
