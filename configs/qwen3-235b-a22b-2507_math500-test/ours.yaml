@@ -13,7 +13,7 @@ main_llm:
   model_name: qwen/qwen3-235b-a22b-2507
   display_name: qwen3-235b-a22b-2507
   temperature: 0.0
-  max_output_tokens: 128
+  max_output_tokens: 1024
   request_timeout: 180
   retry_attempts: 8
   retry_sleep: 2.0
