@@ -1,6 +1,7 @@
 from .gemini import GeminiLLM
 from .groq import GroqLLM
 from .deepseek import DeepSeekLLM
+from .openrouter import OpenRouterLLM
 from .qwen import QwenScoreModel
 from .gemini_embedding import GeminiEmbedding2ScoreModel
 
@@ -13,6 +14,8 @@ def build_main_llm(cfg):
         return GroqLLM(cfg)
     if provider == "deepseek":
         return DeepSeekLLM(cfg)
+    if provider == "openrouter":
+        return OpenRouterLLM(cfg)
     raise ValueError(f"Unknown main_llm.provider: {provider}")
 
 
