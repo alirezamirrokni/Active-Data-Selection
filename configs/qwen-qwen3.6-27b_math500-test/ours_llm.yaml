@@ -31,7 +31,7 @@ selector_llm:
   display_name: qwen-qwen3.6-27b
   reasoning_effort: none
 policy:
-  epsilon: 0.445
+  epsilon: 0.325
   alpha_step_size: 0.1
   initial_alpha: 0.0
   warm_start_batches: 0
