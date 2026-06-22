@@ -13,6 +13,15 @@ from methods import build_method
 from methods.costs import compute_cost
 from utils import load_json, load_yaml, project_paths, read_csv_or_empty, save_json_atomic, write_csv_atomic
 
+import warnings
+
+warnings.filterwarnings(
+    "ignore",
+    message=r".*_check_is_size will be removed in a future PyTorch release.*",
+    category=FutureWarning,
+    module=r"bitsandbytes.*",
+)
+
 
 GEN_COLUMNS = [
     "example_id",
