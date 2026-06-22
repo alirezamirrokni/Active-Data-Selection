@@ -1,0 +1,5 @@
+{
+  "config": "random_qwen-qwen3.6-27b_mmlupro-test_n500_seed42_budget5_seed7",
+  "next_batch": 250,
+  "method_state": {}
+}
