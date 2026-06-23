@@ -32,7 +32,7 @@ class GeminiEmbedding2ScoreModel:
     """Gemini Embedding 2 feature model used by the EDIT linear probe.
 
     The model maps each prompt-response pair Z=(X, \u007eY) to a dense feature vector.
-    These vectors replace the local Qwen hidden-state features in the `ours` method.
+    These vectors can be used as feature representations in the `ours` method.
     """
 
     def __init__(self, cfg: Dict[str, Any]):

@@ -2,7 +2,6 @@ from .gemini import GeminiLLM
 from .groq import GroqLLM
 from .deepseek import DeepSeekLLM
 from .openrouter import OpenRouterLLM
-from .qwen import QwenLLM, QwenScoreModel
 from .gemini_embedding import GeminiEmbedding2ScoreModel
 from .minilm import MiniLMScoreModel
 
@@ -17,8 +16,6 @@ def build_main_llm(cfg):
         return DeepSeekLLM(cfg)
     if provider == "openrouter":
         return OpenRouterLLM(cfg)
-    if provider in {"qwen", "qwen8b", "qwen_local"}:
-        return QwenLLM(cfg)
     raise ValueError(f"Unknown main_llm.provider: {provider}")
 
 
@@ -26,8 +23,6 @@ def build_score_model(cfg):
     provider = cfg.get("provider", "none")
     if provider in {None, "none"}:
         return None
-    if provider in {"qwen", "qwen8b"}:
-        return QwenScoreModel(cfg)
     if provider in {"minilm", "all_minilm_l6_v2", "all-MiniLM-L6-v2", "sentence_transformers_minilm"}:
         return MiniLMScoreModel(cfg)
     if provider in {"gemini_embedding_2", "gemini-embedding-2", "gemini_embedding"}:

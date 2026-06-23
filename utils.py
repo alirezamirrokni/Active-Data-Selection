@@ -73,15 +73,9 @@ def _score_model_name(cfg: Dict[str, Any]) -> str:
     if provider in {None, "none"}:
         return "none"
     provider_safe = safe_name(str(provider).lower())
-    if provider_safe in {"qwen", "qwen8b"}:
-        return "qwen"
     if provider_safe in {"gemini_embedding_2", "gemini-embedding-2", "gemini_embedding"}:
         return "gemini-embedding-2"
     model_name = safe_name(score.get("model_name", provider))
-    if model_name == "Qwen-Qwen3-8B":
-        return "qwen"
-    model_name = model_name.replace("Qwen-Qwen3-", "qwen-")
-    model_name = model_name.replace("Qwen-Qwen", "qwen-")
     return model_name
 
 
