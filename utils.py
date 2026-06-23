@@ -107,16 +107,12 @@ def _method_params(cfg: Dict[str, Any]) -> list[str]:
         return [f"seed{seed}"]
 
     if method == "ours":
-        params = [
+        return [
             _score_model_name(cfg),
-            f"kernel{safe_name(policy.get('kernel', 'rbf'))}",
             f"eps{fmt_float(policy.get('epsilon', 0))}",
             f"alpha{fmt_float(policy.get('alpha_step_size', 0))}",
             f"theta{fmt_float(policy.get('theta_step_size', 0))}",
         ]
-        if str(policy.get('kernel', 'rbf')).lower().strip() == 'rbf' and 'rbf_gamma' in policy:
-            params.append(f"gamma{fmt_float(policy.get('rbf_gamma'))}")
-        return params
 
     if method == "ours_llm":
         selector_name = _selector_llm_name(cfg)

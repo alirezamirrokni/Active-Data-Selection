@@ -21,10 +21,6 @@ class OursSelection:
         self.score_model = score_model
         self.policy = cfg["policy"]
 
-        self.kernel = str(self.policy.get("kernel", "rbf")).lower().strip()
-        if self.kernel not in {"linear", "rbf"}:
-            raise ValueError(f"Unsupported kernel {self.kernel!r}. Expected 'linear' or 'rbf'.")
-
         state = state or {}
 
         self.seed = int(cfg.get("seed", 0))
@@ -49,28 +45,6 @@ class OursSelection:
     @staticmethod
     def _safe_ratio(num: float, den: float) -> float:
         return 0.0 if den <= 0 else float(num / den)
-
-    def _kernel_values(self, features: np.ndarray) -> np.ndarray:
-        """Compute k(theta, Phi_i) for every row feature Phi_i."""
-        if self.kernel == "linear":
-            return features @ self.theta
-
-        gamma = float(self.policy.get("rbf_gamma", 1.0))
-        if gamma <= 0:
-            raise ValueError(f"rbf_gamma must be positive, got {gamma}.")
-
-        diff = self.theta[None, :] - features
-        sq_dist = np.sum(diff * diff, axis=1)
-        return np.exp(-gamma * sq_dist)
-
-    def _kernel_grad_theta(self, features: np.ndarray, kernel_values: np.ndarray) -> np.ndarray:
-        """Compute grad_theta k(theta, Phi_i) for every row feature Phi_i."""
-        if self.kernel == "linear":
-            return features
-
-        gamma = float(self.policy.get("rbf_gamma", 1.0))
-        diff = self.theta[None, :] - features
-        return -2.0 * gamma * kernel_values[:, None] * diff
 
     @staticmethod
     def _budgeted_random_selection(costs: np.ndarray, budget: float, rng: np.random.Generator) -> np.ndarray:
@@ -169,8 +143,7 @@ class OursSelection:
 
         rng = np.random.default_rng(self.seed + 1000003 * int(t))
 
-        kernel_values = self._kernel_values(features)
-        eta = sigmoid(kernel_values).astype(np.float32)
+        eta = sigmoid(features @ self.theta).astype(np.float32)
 
         if t < warm_start_batches:
             selected = self._budgeted_random_selection(costs=costs, budget=budget, rng=rng)
@@ -201,8 +174,7 @@ class OursSelection:
         )
 
         if n_sel > 0:
-            kernel_grad = self._kernel_grad_theta(features, kernel_values)
-            grad = ((selected * (eta - A))[:, None] * kernel_grad).sum(axis=0) / n_sel
+            grad = ((selected * (eta - A))[:, None] * features).sum(axis=0) / n_sel
 
             if l2_reg > 0:
                 grad = grad + l2_reg * self.theta
@@ -211,8 +183,6 @@ class OursSelection:
 
         out = batch_df.copy()
         out["eta"] = eta
-        out["kernel_score"] = kernel_values.astype(np.float32)
-        out["kernel"] = self.kernel
         out["alpha"] = old_alpha
         out["beta"] = beta
         out["selected"] = selected
@@ -221,11 +191,7 @@ class OursSelection:
         return out, self.state_dict()
 
     def state_dict(self) -> Dict[str, Any]:
-        state = {
+        return {
             "alpha": float(self.alpha),
             "theta": None if self.theta is None else self.theta.astype(float).tolist(),
-            "kernel": self.kernel,
         }
-        if self.kernel == "rbf":
-            state["rbf_gamma"] = float(self.policy.get("rbf_gamma", 1.0))
-        return state

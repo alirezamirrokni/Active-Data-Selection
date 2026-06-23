@@ -37,7 +37,6 @@ policy:
   epsilon: 0.415
   alpha_step_size: 0.1
   theta_step_size: 0.1
-  kernel: rbf
   initial_alpha: 0.0
   theta_init_scale: 0.01
   warm_start_batches: 0
