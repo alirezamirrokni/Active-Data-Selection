@@ -33,9 +33,9 @@ score_model:
 policy:
   epsilon: 0.485
   alpha_step_size: 0.1
-  theta_step_size: 0.1
+  theta_step_size: 0.5
   initial_alpha: 0.0
-  theta_init_scale: 0.01
+  theta_init_scale: 0.1
   warm_start_batches: 0
   budget_per_batch: 5
   cost_variant: constant
