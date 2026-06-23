@@ -22,17 +22,15 @@ main_llm:
   retry_sleep: 2.0
   min_seconds_between_calls: 0.5
 score_model:
-  provider: gemini_embedding_2
-  model_name: gemini-embedding-2
-  output_dimensionality: 3072
-  task_type: SEMANTIC_SIMILARITY
-  encode_batch_size: 16
+  provider: minilm
+  model_name: sentence-transformers/all-MiniLM-L6-v2
+  max_length: 512
+  encode_batch_size: 64
+  pooling: mean
+  torch_dtype: auto
+  device: auto
   normalize_features: true
-  max_chars: 12000
-  request_timeout: 120
-  retry_attempts: 8
-  retry_sleep: 2.0
-  min_seconds_between_calls: 0.5
+  cache_dir: null
 policy:
   epsilon: 0.445
   alpha_step_size: 0.1

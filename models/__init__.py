@@ -4,6 +4,7 @@ from .deepseek import DeepSeekLLM
 from .openrouter import OpenRouterLLM
 from .qwen import QwenLLM, QwenScoreModel
 from .gemini_embedding import GeminiEmbedding2ScoreModel
+from .minilm import MiniLMScoreModel
 
 
 def build_main_llm(cfg):
@@ -27,6 +28,8 @@ def build_score_model(cfg):
         return None
     if provider in {"qwen", "qwen8b"}:
         return QwenScoreModel(cfg)
+    if provider in {"minilm", "all_minilm_l6_v2", "all-MiniLM-L6-v2", "sentence_transformers_minilm"}:
+        return MiniLMScoreModel(cfg)
     if provider in {"gemini_embedding_2", "gemini-embedding-2", "gemini_embedding"}:
         return GeminiEmbedding2ScoreModel(cfg)
     raise ValueError(f"Unknown score_model.provider: {provider}")

@@ -20,14 +20,13 @@ main_llm:
   display_name: qwen-qwen3.6-27b
   reasoning_effort: none
 score_model:
-  provider: qwen
-  model_name: Qwen/Qwen3-8B
-  max_length: 1024
-  encode_batch_size: 4
+  provider: minilm
+  model_name: sentence-transformers/all-MiniLM-L6-v2
+  max_length: 512
+  encode_batch_size: 64
   pooling: mean
-  load_in_4bit: true
   torch_dtype: auto
-  device_map: auto
+  device: auto
   normalize_features: true
   cache_dir: null
 policy:
