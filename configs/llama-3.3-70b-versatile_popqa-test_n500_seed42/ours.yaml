@@ -33,7 +33,7 @@ score_model:
 policy:
   epsilon: 0.175
   alpha_step_size: 0.1
-  theta_step_size: 0.5
+  theta_step_size: 1.0
   initial_alpha: 0.0
   theta_init_scale: 0.1
   warm_start_batches: 0
