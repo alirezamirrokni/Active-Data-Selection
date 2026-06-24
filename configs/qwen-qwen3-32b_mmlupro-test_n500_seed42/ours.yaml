@@ -33,7 +33,7 @@ score_model:
   normalize_features: true
   cache_dir: null
 policy:
-  epsilon: 0.485
+  epsilon: 0.425
   alpha_step_size: 0.1
   theta_step_size: 1.0
   initial_alpha: 0.0
