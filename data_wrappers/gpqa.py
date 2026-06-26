@@ -119,6 +119,7 @@ class GPQAWrapper:
         self.subset_size = cfg.get("subset_size", cfg.get("max_samples", None))
         self.subset_size = None if self.subset_size in {None, "", "null", "none"} else int(self.subset_size)
         self.subset_seed = int(cfg.get("subset_seed", 42))
+        self.subset_strategy = str(cfg.get("subset_strategy", "random")).lower()
         self.shuffle_choices = bool(cfg.get("shuffle_choices", True))
 
     def _select_source_indices(self, n_total: int) -> List[int]:
@@ -132,8 +133,18 @@ class GPQAWrapper:
             )
         if self.subset_size == n_total:
             return list(range(n_total))
-        rng = np.random.default_rng(self.subset_seed)
-        return rng.permutation(n_total)[: self.subset_size].astype(int).tolist()
+
+        if self.subset_strategy in {"random", "shuffle", "sample"}:
+            rng = np.random.default_rng(self.subset_seed)
+            return rng.permutation(n_total)[: self.subset_size].astype(int).tolist()
+
+        if self.subset_strategy in {"first", "sequential", "head"}:
+            return list(range(self.subset_size))
+
+        raise ValueError(
+            f"Unknown gpqa subset_strategy={self.subset_strategy!r}. "
+            "Use 'random' or 'first'."
+        )
 
     def _choices_for_row(self, row: Dict[str, Any], source_idx: int) -> tuple[List[str], str]:
         question = _first_nonempty(row, ("Question", "question", "input", "prompt"))

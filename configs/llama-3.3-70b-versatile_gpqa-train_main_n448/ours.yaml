@@ -8,8 +8,10 @@ data:
   split: train
   subset_size: 448
   subset_seed: 42
-  shuffle_choices: true
+  subset_strategy: random
   max_samples: 448
+  batch_size: 10
+  num_batches: 250
 main_llm:
   provider: groq
   model_name: llama-3.3-70b-versatile
