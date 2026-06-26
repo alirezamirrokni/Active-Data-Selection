@@ -43,7 +43,7 @@ class MiniLMScoreModel:
         dataset_name = str(self.cfg.get("dataset_name", "math500")).lower().replace("-", "_")
         if dataset_name in {"popqa", "popqa500"}:
             default_prompt_template = "Question:\n\n{question}\n\nModel answer:\n\n{model_answer}"
-        elif dataset_name in {"mmlupro", "mmlu_pro", "mmlupro500", "mmlu_pro500"}:
+        elif dataset_name in {"mmlupro", "mmlu_pro", "mmlupro500", "mmlu_pro500", "gpqa", "gpqa_diamond", "gpqa_main", "gpqa_extended"}:
             default_prompt_template = "Multiple-choice question:\n\n{question}\n\nModel answer:\n\n{model_answer}"
         else:
             default_prompt_template = "Problem:\n\n{question}\n\nModel answer:\n\n{model_answer}"

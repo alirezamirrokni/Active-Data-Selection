@@ -1,6 +1,7 @@
 from .math500 import Math500Wrapper
 from .mmlupro import MMLUProWrapper
 from .popqa import PopQAWrapper
+from .gpqa import GPQAWrapper
 
 
 def build_data_wrapper(cfg):
@@ -11,4 +12,6 @@ def build_data_wrapper(cfg):
         return PopQAWrapper(cfg)
     if name in {"mmlupro", "mmlu_pro", "mmlupro500", "mmlu_pro500"}:
         return MMLUProWrapper(cfg)
+    if name in {"gpqa", "gpqa_diamond", "gpqa_main", "gpqa_extended"}:
+        return GPQAWrapper(cfg)
     raise ValueError(f"Unknown data.name: {cfg.get('name')}")

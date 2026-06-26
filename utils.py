@@ -42,6 +42,9 @@ def _dataset_name(cfg: Dict[str, Any]) -> str:
         "mmlu_pro": "mmlupro",
         "mmlu_pro500": "mmlupro",
         "mmlupro500": "mmlupro",
+        "gpqa_diamond": "gpqa",
+        "gpqa_main": "gpqa",
+        "gpqa_extended": "gpqa",
     }
     name = safe_name(name_aliases.get(raw_name, raw_name))
     split = data.get("split")
@@ -51,6 +54,20 @@ def _dataset_name(cfg: Dict[str, Any]) -> str:
         subset_size = data.get("subset_size", data.get("max_samples", 500))
         subset_seed = data.get("subset_seed", 42)
         base = f"{base}_n{safe_name(subset_size)}_seed{safe_name(subset_seed)}"
+
+    if name == "gpqa":
+        hf_config = data.get("hf_config", "gpqa_diamond")
+        subset_aliases = {
+            "gpqa_diamond": "diamond",
+            "gpqa_main": "main",
+            "gpqa_extended": "extended",
+        }
+        subset = safe_name(subset_aliases.get(str(hf_config), str(hf_config)))
+        subset_size = data.get("subset_size", data.get("max_samples", None))
+        if subset_size in {None, "", "null", "none"}:
+            base = f"{base}_{subset}"
+        else:
+            base = f"{base}_{subset}_n{safe_name(subset_size)}"
 
     return base
 

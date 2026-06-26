@@ -93,6 +93,33 @@ Model answer:
 {model_answer}
 """
 
+GPQA_SCORE_SYSTEM_PROMPT = """You are an expert evaluator of model-generated GPQA answers.
+Your task is to estimate whether a human evaluator would need to correct the model's graduate-level science multiple-choice answer.
+Return only valid JSON. Do not include explanations, markdown, or extra text."""
+
+
+GPQA_SCORE_PROMPT = """Estimate the posterior edit probability for this prompt-response pair.
+
+Definition:
+- score = probability in [0, 1] that a human evaluator would modify the model answer.
+- High score means the answer is likely the wrong option, not a valid option letter, ambiguous, unsupported, or inconsistent with the GPQA question and choices.
+- Low score means the answer is likely the correct single option and would be confirmed without modification.
+
+Rules:
+- Use only the GPQA question, answer options, and model answer below.
+- Do not assume access to the gold answer.
+- The expected response is one option letter: A, B, C, or D.
+- Treat missing final answers, multiple conflicting choices, answer text without a clear option letter, and non-answer text as evidence that human correction may be needed.
+- Return only valid JSON in exactly this format:
+  {{"score": 0.73}}
+
+Question and options:
+{question}
+
+Model answer:
+{model_answer}
+"""
+
 
 def _canonical_dataset_name(name: Any) -> str:
     text = str(name or "math500").lower().replace("-", "_")
@@ -101,6 +128,9 @@ def _canonical_dataset_name(name: Any) -> str:
         "mmlu_pro": "mmlupro",
         "mmlu_pro500": "mmlupro",
         "mmlupro500": "mmlupro",
+        "gpqa_diamond": "gpqa",
+        "gpqa_main": "gpqa",
+        "gpqa_extended": "gpqa",
     }
     return aliases.get(text, text)
 
@@ -109,12 +139,14 @@ DEFAULT_SCORE_SYSTEM_PROMPTS = {
     "math500": MATH500_SCORE_SYSTEM_PROMPT,
     "popqa": POPQA_SCORE_SYSTEM_PROMPT,
     "mmlupro": MMLUPRO_SCORE_SYSTEM_PROMPT,
+    "gpqa": GPQA_SCORE_SYSTEM_PROMPT,
 }
 
 DEFAULT_SCORE_PROMPTS = {
     "math500": MATH500_SCORE_PROMPT,
     "popqa": POPQA_SCORE_PROMPT,
     "mmlupro": MMLUPRO_SCORE_PROMPT,
+    "gpqa": GPQA_SCORE_PROMPT,
 }
 
 
