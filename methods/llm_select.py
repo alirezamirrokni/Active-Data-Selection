@@ -201,10 +201,17 @@ class LLMSelect:
         return "\n---\n".join(chunks)
 
     def _build_prompt(self, batch_df: pd.DataFrame, budget: float) -> str:
-        return self.prompt_template.format(
+        prompt = self.prompt_template.format(
             budget=f"{budget:g}",
             items=self._format_items(batch_df),
         )
+
+        # Minimal safety cap for providers with small TPM/request limits.
+        # This truncates only the tail of the final prompt sent to the selector LLM.
+        max_prompt_chars = int(self.policy.get("max_prompt_chars", 8000))
+        if max_prompt_chars > 0 and len(prompt) > max_prompt_chars:
+            prompt = prompt[:max_prompt_chars].rstrip() + "\n\n[Prompt truncated due to input-size limit.]"
+        return prompt
 
     @staticmethod
     def _parse_indices(text: str) -> List[int]:
