@@ -31,7 +31,7 @@ selector_llm:
   retry_sleep: 2.0
   min_seconds_between_calls: 2.5
 policy:
-  epsilon: 0.445
+  epsilon: 0.505
   alpha_step_size: 0.1
   initial_alpha: 0.0
   warm_start_batches: 0
