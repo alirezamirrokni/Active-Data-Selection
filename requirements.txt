@@ -17,13 +17,10 @@ seaborn>=0.13.0
 
 # Local score LLM / feature extraction
 torch>=2.2.0
-transformers>=5.0.0
+transformers>=4.51.0
 accelerate>=0.30.0
 bitsandbytes>=0.43.0
 
 # Mathematical answer checking
 sympy>=1.12
 math-verify[antlr4_13_2]>=0.8.0
-
-# Local Unsloth inference for Ministral 3
-unsloth
