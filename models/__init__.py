@@ -1,7 +1,7 @@
 from .gemini import GeminiLLM
 from .groq import GroqLLM
+from .unsloth import UnslothLLM
 from .deepseek import DeepSeekLLM
-from .openrouter import OpenRouterLLM
 from .gemini_embedding import GeminiEmbedding2ScoreModel
 from .minilm import MiniLMScoreModel
 
@@ -12,10 +12,10 @@ def build_main_llm(cfg):
         return GeminiLLM(cfg)
     if provider == "groq":
         return GroqLLM(cfg)
+    if provider == "unsloth":
+        return UnslothLLM(cfg)
     if provider == "deepseek":
         return DeepSeekLLM(cfg)
-    if provider == "openrouter":
-        return OpenRouterLLM(cfg)
     raise ValueError(f"Unknown main_llm.provider: {provider}")
 
 
