@@ -1,6 +1,7 @@
 from .llm_select import LLMSelect
 from .ours import OursSelection
 from .ours_llm import OursLLMSelection
+from .ours_random import OursRandomSelection
 from .random import RandomSelection
 
 
@@ -10,6 +11,8 @@ def build_method(cfg, score_model=None, state=None):
         return OursSelection(cfg, score_model=score_model, state=state)
     if method == "ours_llm":
         return OursLLMSelection(cfg, score_model=score_model, state=state)
+    if method == "ours_random":
+        return OursRandomSelection(cfg, score_model=score_model, state=state)
     if method == "random":
         return RandomSelection(cfg, score_model=score_model, state=state)
     if method == "llm_select":

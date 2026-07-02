@@ -125,6 +125,13 @@ def _method_params(cfg: Dict[str, Any]) -> list[str]:
             f"theta{fmt_float(policy.get('theta_step_size', 0))}",
         ]
 
+    if method == "ours_random":
+        return [
+            f"eps{fmt_float(policy.get('epsilon', 0))}",
+            f"alpha{fmt_float(policy.get('alpha_step_size', 0))}",
+            f"seed{seed}",
+        ]
+
     if method == "ours_llm":
         selector_name = _selector_llm_name(cfg)
         if selector_name == "none":
