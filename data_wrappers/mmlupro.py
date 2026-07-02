@@ -252,6 +252,10 @@ class MMLUProWrapper:
                     "question": formatted_question,
                     "gold_answer": f"{gold_letter}. {gold_answer}",
                     "gold_final": gold_letter,
+                    # Extra metadata is ignored by normal runs but is used by
+                    # distribution-shift stream sampling when configured.
+                    "category": str(category) if category else "unknown",
+                    "source_index": int(source_idx),
                 }
             )
 

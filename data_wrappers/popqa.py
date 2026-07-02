@@ -1,5 +1,6 @@
 import ast
 import json
+import math
 import re
 import string
 from collections.abc import Iterable
@@ -240,6 +241,24 @@ def _load_hf_dataset(hf_name: str, hf_config: Any, split: str):
     return load_dataset(hf_name, hf_config, split=split)
 
 
+def _popularity_value(row: Dict[str, Any]) -> float:
+    """Return a numeric PopQA popularity proxy when available.
+
+    Higher values are treated as more popular. Missing/non-numeric values are
+    treated as -inf for head/mid/tail sampling and +inf by the legacy longtail
+    selector below.
+    """
+    for key in ("s_pop", "subj_pop", "subject_popularity", "pageviews"):
+        if key in row and row.get(key) is not None:
+            try:
+                val = float(row.get(key))
+                if math.isfinite(val):
+                    return val
+            except Exception:
+                pass
+    return float("nan")
+
+
 class PopQAWrapper:
     """Fixed-size PopQA subset for exact-match open-domain QA experiments."""
 
@@ -262,19 +281,46 @@ class PopQAWrapper:
             rng = np.random.default_rng(self.subset_seed)
             return rng.permutation(n_total)[: self.subset_size].tolist()
 
+        if self.subset_strategy in {"popularity_balanced", "head_mid_tail", "popshift"}:
+            scored = []
+            for idx in range(n_total):
+                row = ds[int(idx)]
+                popularity = _popularity_value(row)
+                if math.isfinite(popularity):
+                    scored.append((popularity, idx))
+            if len(scored) < self.subset_size:
+                raise ValueError(
+                    f"Requested popqa subset_size={self.subset_size}, but only {len(scored)} rows "
+                    "have finite popularity metadata for popularity_balanced sampling."
+                )
+
+            scored.sort(key=lambda x: (x[0], x[1]))
+            thirds = np.array_split(np.asarray([idx for _, idx in scored], dtype=int), 3)
+            # Order: low, mid, high in sorted popularity. Select equally from
+            # each third so later stream phases have stable source pools.
+            base = self.subset_size // 3
+            extras = self.subset_size % 3
+            alloc = [base + (1 if i < extras else 0) for i in range(3)]
+
+            rng = np.random.default_rng(self.subset_seed)
+            selected: List[int] = []
+            for indices, k in zip(thirds, alloc):
+                if k <= 0:
+                    continue
+                if k > len(indices):
+                    raise ValueError(
+                        f"Not enough examples in a PopQA popularity third: need {k}, have {len(indices)}."
+                    )
+                chosen = rng.choice(indices, size=k, replace=False)
+                selected.extend(int(x) for x in chosen.tolist())
+            return sorted(selected)
+
         if self.subset_strategy in {"longtail", "lowest_popularity", "hard"}:
             scored = []
             for idx in range(n_total):
                 row = ds[int(idx)]
-                popularity = None
-                for key in ("s_pop", "subj_pop", "subject_popularity", "pageviews"):
-                    if key in row and row.get(key) is not None:
-                        try:
-                            popularity = float(row.get(key))
-                            break
-                        except Exception:
-                            pass
-                if popularity is None:
+                popularity = _popularity_value(row)
+                if not math.isfinite(popularity):
                     popularity = float("inf")
                 scored.append((popularity, idx))
             scored.sort(key=lambda x: (x[0], x[1]))
@@ -282,7 +328,7 @@ class PopQAWrapper:
 
         raise ValueError(
             f"Unknown popqa subset_strategy={self.subset_strategy!r}. "
-            "Use 'random' or 'longtail'."
+            "Use 'random', 'longtail', or 'popularity_balanced'."
         )
 
     def load_records(self) -> List[Dict[str, Any]]:
@@ -311,6 +357,10 @@ class PopQAWrapper:
                     "question": str(question),
                     "gold_answer": _answer_value(row),
                     "gold_final": encode_gold_aliases(aliases),
+                    # Extra metadata is ignored by normal runs but is used by
+                    # distribution-shift stream sampling when configured.
+                    "popularity": _popularity_value(row),
+                    "source_index": int(source_idx),
                 }
             )
 

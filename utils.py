@@ -54,6 +54,9 @@ def _dataset_name(cfg: Dict[str, Any]) -> str:
         subset_size = data.get("subset_size", data.get("max_samples", 500))
         subset_seed = data.get("subset_seed", 42)
         base = f"{base}_n{safe_name(subset_size)}_seed{safe_name(subset_seed)}"
+        dataset_tag = data.get("dataset_tag", data.get("experiment_tag", None))
+        if dataset_tag not in {None, "", "null", "none"}:
+            base = f"{base}_{safe_name(dataset_tag)}"
 
     if name == "gpqa":
         hf_config = data.get("hf_config", "gpqa_diamond")

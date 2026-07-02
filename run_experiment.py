@@ -65,12 +65,145 @@ def _safe_div(num: float, den: float) -> float:
     return 0.0 if den <= 0 else float(num / den)
 
 
+def _normalize_filter_value(value: Any) -> str:
+    """Normalize metadata values used by shift-stream filters."""
+    return str(value or "").strip().lower().replace("_", " ").replace("-", " ")
+
+
+def _record_matches_phase_filter(
+    rec: Dict[str, Any],
+    phase_filter: Dict[str, Any],
+    popularity_bounds: tuple[float, float] | None = None,
+) -> bool:
+    """Return whether a record belongs to a configured distribution-shift phase.
+
+    Supported filters are intentionally small and explicit so regular configs keep
+    exactly the old sampling behavior unless ``data.shift_stream`` is present.
+    """
+    if not phase_filter:
+        return True
+
+    if "category_in" in phase_filter:
+        allowed = {_normalize_filter_value(v) for v in phase_filter.get("category_in", [])}
+        category = _normalize_filter_value(rec.get("category") or rec.get("subject") or rec.get("domain"))
+        if category not in allowed:
+            return False
+
+    if "popularity_quantile" in phase_filter:
+        if popularity_bounds is None:
+            raise ValueError("Internal error: popularity bounds were not computed for popularity_quantile filter.")
+        lo, hi = popularity_bounds
+        try:
+            popularity = float(rec.get("popularity"))
+        except Exception:
+            return False
+        # Upper endpoint is inclusive so the most popular / least popular item is kept.
+        if not (lo <= popularity <= hi):
+            return False
+
+    return True
+
+
+def _popularity_bounds(records: List[Dict[str, Any]], qlo: float, qhi: float) -> tuple[float, float]:
+    values = []
+    for rec in records:
+        try:
+            val = float(rec.get("popularity"))
+        except Exception:
+            continue
+        if np.isfinite(val):
+            values.append(val)
+    if not values:
+        raise ValueError("data.shift_stream uses popularity_quantile, but records have no finite popularity metadata.")
+    values_arr = np.asarray(values, dtype=float)
+    qlo = float(qlo)
+    qhi = float(qhi)
+    if not (0.0 <= qlo < qhi <= 1.0):
+        raise ValueError("popularity_quantile must be [lo, hi] with 0 <= lo < hi <= 1.")
+    return (float(np.quantile(values_arr, qlo)), float(np.quantile(values_arr, qhi)))
+
+
+def sample_shift_batches(records: List[Dict[str, Any]], cfg: Dict[str, Any]) -> List[List[Dict[str, Any]]]:
+    """Sample an online stream whose distribution changes at configured phase edges."""
+    data_cfg = cfg["data"]
+    stream_cfg = data_cfg.get("shift_stream") or {}
+    phases = stream_cfg.get("phases") or []
+    if not phases:
+        raise ValueError("data.shift_stream.phases must contain at least one phase.")
+
+    default_batch_size = int(data_cfg.get("batch_size", 10))
+    if default_batch_size <= 0:
+        raise ValueError("data.batch_size must be positive.")
+
+    expected_num_batches = data_cfg.get("num_batches")
+    phase_total = sum(int(phase.get("num_batches", 0)) for phase in phases)
+    if phase_total <= 0:
+        raise ValueError("Each shift_stream phase must set a positive num_batches.")
+    if expected_num_batches is not None and int(expected_num_batches) != int(phase_total):
+        raise ValueError(
+            f"data.num_batches={expected_num_batches} does not match the shift-stream "
+            f"phase total {phase_total}. Keep them equal to avoid ambiguous output lengths."
+        )
+
+    seed = int(data_cfg.get("sample_seed", cfg.get("seed", 0)))
+    batches: List[List[Dict[str, Any]]] = []
+
+    for phase_idx, phase in enumerate(phases):
+        phase_name = str(phase.get("name", f"phase_{phase_idx + 1}"))
+        phase_filter = dict(phase.get("filter") or {})
+        popularity_bounds = None
+        if "popularity_quantile" in phase_filter:
+            qlo, qhi = phase_filter["popularity_quantile"]
+            popularity_bounds = _popularity_bounds(records, qlo, qhi)
+
+        phase_records = [
+            rec
+            for rec in records
+            if _record_matches_phase_filter(rec, phase_filter, popularity_bounds=popularity_bounds)
+        ]
+
+        if not phase_records:
+            categories = sorted(
+                {
+                    _normalize_filter_value(r.get("category") or r.get("subject") or r.get("domain"))
+                    for r in records
+                    if _normalize_filter_value(r.get("category") or r.get("subject") or r.get("domain"))
+                }
+            )
+            raise ValueError(
+                f"Shift-stream phase {phase_name!r} matched zero records. "
+                f"Available normalized categories: {categories[:50]}"
+            )
+
+        num_batches = int(phase.get("num_batches", 0))
+        batch_size = int(phase.get("batch_size", default_batch_size))
+        if num_batches <= 0:
+            raise ValueError(f"Shift-stream phase {phase_name!r} has non-positive num_batches.")
+        if batch_size <= 0:
+            raise ValueError(f"Shift-stream phase {phase_name!r} has non-positive batch_size.")
+
+        rng = np.random.default_rng(seed + 104729 * phase_idx)
+        indices = rng.choice(len(phase_records), size=(num_batches, batch_size), replace=True)
+        batches.extend([[phase_records[int(i)] for i in row] for row in indices])
+
+        print(
+            f"[shift] phase={phase_idx + 1}/{len(phases)} name={phase_name!r} "
+            f"pool={len(phase_records)} batches={num_batches} batch_size={batch_size}"
+        )
+
+    return batches
+
+
 def sample_batches(records: List[Dict[str, Any]], cfg: Dict[str, Any]) -> List[List[Dict[str, Any]]]:
     """Sample online batches with replacement from the dataset pool."""
     if not records:
         raise RuntimeError("Dataset wrapper returned no records.")
 
     data_cfg = cfg["data"]
+    stream_cfg = data_cfg.get("shift_stream") or {}
+    if stream_cfg.get("enabled", False) or stream_cfg.get("phases"):
+        return sample_shift_batches(records, cfg)
+
     batch_size = int(data_cfg.get("batch_size", 10))
     num_batches = int(data_cfg.get("num_batches", 200))
     if batch_size <= 0:
