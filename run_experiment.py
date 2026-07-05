@@ -10,7 +10,7 @@ from tqdm import tqdm
 from data_wrappers import build_data_wrapper
 from models import build_main_llm, build_score_model
 from methods import build_method
-from methods.costs import compute_cost
+from methods.costs import compute_cost, prepare_cost_context
 from utils import load_json, load_yaml, project_paths, read_csv_or_empty, save_json_atomic, write_csv_atomic
 
 import warnings
@@ -357,6 +357,8 @@ def make_batch_rows(
 ) -> pd.DataFrame:
     rows = []
     policy = cfg["policy"]
+    cost_variant = policy.get("cost_variant", "constant")
+    cost_context = prepare_cost_context(gen_by_id, cost_variant)
     score_cfg = cfg.get("score_model", {}) or {}
     selector_cfg = cfg.get("selector_llm", {}) or cfg.get("score_llm", {}) or {}
 
@@ -388,7 +390,7 @@ def make_batch_rows(
             "selector_llm_provider": selector_cfg.get("provider", "none"),
             "selector_llm": selector_cfg.get("model_name", "none"),
         }
-        row["cost"] = compute_cost(row, policy.get("cost_variant", "constant"))
+        row["cost"] = compute_cost(row, cost_variant, cost_context)
         rows.append(row)
     return pd.DataFrame(rows, columns=RUN_COLUMNS)
 

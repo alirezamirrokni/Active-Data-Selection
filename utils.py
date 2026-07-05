@@ -225,10 +225,18 @@ def save_json_atomic(obj: Dict[str, Any], path: str | Path) -> None:
 
 
 def project_paths(cfg: Dict[str, Any]) -> Dict[str, Path]:
-    """Return standard project paths under outputs/{main_llm}_{dataset}/."""
+    """Return standard project paths under outputs/{main_llm}_{dataset}/.
+
+    Optional output_subdir is only used to place deliberately separated
+    experiment runs in a different folder. It does not affect run names or
+    generation cache filenames, and existing configs without output_subdir keep
+    exactly the previous paths.
+    """
     out_root = ensure_dir(cfg.get("output_dir", "outputs"))
     model_data = model_data_name_from_config(cfg)
-    out = ensure_dir(out_root / model_data)
+    output_subdir = cfg.get("output_subdir", None)
+    out_name = safe_name(output_subdir) if output_subdir not in {None, "", "null", "none"} else model_data
+    out = ensure_dir(out_root / out_name)
     paths = {
         "output_root": out_root,
         "model_data_name": model_data,
