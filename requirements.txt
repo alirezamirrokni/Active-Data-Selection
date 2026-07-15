@@ -1,7 +1,5 @@
 # API clients
-openai>=1.70.0
 groq>=0.13.0
-google-genai>=1.0.0
 
 # Data and experiment utilities
 datasets>=2.19.0
