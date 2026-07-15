@@ -1,9 +1,0 @@
-% Main base-model accuracy table
-\rowcolor{mathsoft} \mbox{MATH-500} & 0.730 & 0.794 \\
-\rowcolor{mmlusoft} \mbox{MMLU-Pro} & 0.526 & 0.558 \\
-\rowcolor{popsoft} \mbox{PopQA} & 0.444 & 0.220 \\
-\rowcolor{gpqasoft} \mbox{GPQA} & 0.540 & 0.458 \\
-
-% Distribution-shift accuracy table
-\rowcolor{mmlusoft} MMLU-Pro & 0.540 \\
-\rowcolor{popsoft} PopQA & 0.393 \\
