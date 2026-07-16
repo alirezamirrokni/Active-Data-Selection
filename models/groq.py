@@ -107,6 +107,8 @@ class GroqLLM:
                 }
                 if self.cfg.reasoning_effort is not None:
                     request_kwargs["reasoning_effort"] = self.cfg.reasoning_effort
+                if "gpt-oss" in self.cfg.model_name.lower():
+                    request_kwargs["include_reasoning"] = False
                 response = self.client.chat.completions.create(**request_kwargs)
                 self._last_call_time = time.time()
                 text = response.choices[0].message.content
