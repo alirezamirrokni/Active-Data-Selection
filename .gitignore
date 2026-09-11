@@ -5,3 +5,6 @@ figures/*
 !figures/.gitkeep
 .cache/
 .ipynb_checkpoints/
+
+# Reproducible paper-analysis artifacts (generated locally)
+paper_artifacts/
