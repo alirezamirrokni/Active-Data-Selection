@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="light" />
+  <meta name="theme-color" content="#f4f6fb" />
+  <title>Human Response Audit</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <div class="noise" aria-hidden="true"></div>
+
+  <section id="loginView" class="login-view">
+    <div class="login-orb orb-a"></div>
+    <div class="login-orb orb-b"></div>
+    <div class="login-shell">
+      <div class="brand-row">
+        <div class="brand-mark">A</div>
+        <div>
+          <div class="brand-kicker">RESEARCH ANNOTATION</div>
+          <div class="brand-name">Human Response Audit</div>
+        </div>
+      </div>
+
+      <div class="login-copy">
+        <div class="eyebrow"><span class="pulse-dot"></span> 200 interactions · 4 datasets</div>
+        <h1>Judge the response.<br><span>Not the benchmark.</span></h1>
+        <p>
+          Review each model response against the user request and reference answer.
+          Mark an edit only when the response genuinely needs modification before acceptance.
+        </p>
+      </div>
+
+      <div class="login-card glass-card">
+        <div class="step-label">ANNOTATOR IDENTITY</div>
+        <h2>Welcome. What should we call you?</h2>
+        <p class="subtle">Your name becomes the CSV filename and restores your progress when you return.</p>
+        <label class="field-label" for="nameInput">Annotator name</label>
+        <div class="name-row">
+          <input id="nameInput" class="name-input" type="text" maxlength="80" autocomplete="name" placeholder="e.g., Annotator 1" autofocus />
+          <button id="startButton" class="primary-button" type="button">
+            Begin audit
+            <span aria-hidden="true">→</span>
+          </button>
+        </div>
+        <div id="loginError" class="form-error" role="alert"></div>
+        <div class="resume-note">
+          <span class="status-dot"></span>
+          Existing names resume automatically from the first unfinished example.
+        </div>
+      </div>
+
+      <div class="login-footer">
+        <span>Blinded method scores</span>
+        <span>•</span>
+        <span>Immediate local autosave</span>
+        <span>•</span>
+        <span>CSV-compatible output</span>
+      </div>
+    </div>
+  </section>
+
+  <div id="appView" class="app-view hidden">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-mark small">A</div>
+        <div>
+          <div class="brand-kicker">HUMAN VERIFICATION</div>
+          <div class="brand-name compact">Response Audit</div>
+        </div>
+      </div>
+
+      <div class="annotator-card">
+        <div class="avatar" id="avatarInitials">A1</div>
+        <div class="annotator-meta">
+          <div class="annotator-name" id="annotatorName">Annotator 1</div>
+          <div class="annotator-file" id="annotatorFile">Annotator 1.csv</div>
+        </div>
+        <button id="switchUserButton" class="icon-button" title="Switch annotator" aria-label="Switch annotator">↗</button>
+      </div>
+
+      <div class="progress-card">
+        <div class="progress-head">
+          <div>
+            <div class="section-label">OVERALL PROGRESS</div>
+            <div class="progress-number"><span id="completedCount">0</span><span class="progress-total"> / 200</span></div>
+          </div>
+          <div class="progress-ring" id="progressRing" style="--progress:0deg">
+            <div class="progress-ring-inner"><span id="progressPercent">0%</span></div>
+          </div>
+        </div>
+        <div class="linear-track"><div id="linearProgress" class="linear-fill"></div></div>
+        <div class="progress-caption" id="progressCaption">200 examples remaining</div>
+      </div>
+
+      <div class="dataset-section">
+        <div class="section-label">DATASETS</div>
+        <div id="datasetList" class="dataset-list"></div>
+      </div>
+
+      <div class="sidebar-spacer"></div>
+
+      <div class="shortcut-card">
+        <div class="section-label">KEYBOARD</div>
+        <div class="shortcut-row"><span>Confirm</span><kbd>C</kbd></div>
+        <div class="shortcut-row"><span>Needs edit</span><kbd>E</kbd></div>
+        <div class="shortcut-row"><span>Navigate</span><div><kbd>←</kbd> <kbd>→</kbd></div></div>
+        <div class="shortcut-row"><span>Next unreviewed</span><kbd>N</kbd></div>
+      </div>
+    </aside>
+
+    <main class="main-area">
+      <header class="topbar">
+        <div class="topbar-left">
+          <div class="sample-index" id="sampleIndex">Example 1 of 200</div>
+          <div id="datasetBadge" class="dataset-badge">GPQA</div>
+          <div id="auditId" class="audit-id">GPQA_001</div>
+        </div>
+        <div class="topbar-actions">
+          <div id="saveState" class="save-state saved"><span class="save-dot"></span><span>Saved</span></div>
+          <a id="downloadButton" class="secondary-button" href="#" download>
+            <span class="download-icon">↓</span> Download CSV
+          </a>
+        </div>
+      </header>
+
+      <div class="content-wrap">
+        <section class="instruction-strip">
+          <div class="instruction-icon">i</div>
+          <div class="instruction-copy">
+            <strong>Your task</strong>
+            <span>Would you modify this response before accepting it as a satisfactory response to the user?</span>
+          </div>
+          <div class="instruction-rule"><span>Confirm</span> if acceptable as-is · <span>Edit</span> only for a substantive issue</div>
+        </section>
+
+        <section class="prompt-card surface-card">
+          <div class="card-head">
+            <div>
+              <div class="section-label">USER PROMPT</div>
+              <h2>Question</h2>
+            </div>
+            <div class="card-badge">Source interaction</div>
+          </div>
+          <div id="questionText" class="rich-text prompt-text"></div>
+        </section>
+
+        <section class="answer-grid">
+          <article class="surface-card answer-card model-card">
+            <div class="card-head sticky-head">
+              <div>
+                <div class="section-label">MODEL RESPONSE</div>
+                <h2>Candidate answer</h2>
+              </div>
+              <div class="model-chip"><span></span>Llama 3.3 70B</div>
+            </div>
+            <div id="modelAnswer" class="rich-text answer-text"></div>
+          </article>
+
+          <article class="surface-card answer-card reference-card">
+            <div class="card-head sticky-head">
+              <div>
+                <div class="section-label">REFERENCE</div>
+                <h2>Ground-truth answer</h2>
+              </div>
+              <div class="reference-chip">GT</div>
+            </div>
+            <div id="goldAnswer" class="rich-text answer-text reference-text"></div>
+            <div id="goldFinalWrap" class="gold-final-wrap hidden">
+              <div class="gold-final-label">Expected final</div>
+              <div id="goldFinal" class="gold-final-value"></div>
+            </div>
+          </article>
+        </section>
+
+        <section class="decision-card surface-card">
+          <div class="decision-head">
+            <div>
+              <div class="section-label">ANNOTATION</div>
+              <h2>Does this response need an edit?</h2>
+              <p>Selecting a label saves immediately. Click the selected label again to clear it.</p>
+            </div>
+            <div id="currentA" class="a-pill neutral">Not labeled</div>
+          </div>
+
+          <div class="decision-options">
+            <button id="confirmButton" class="decision-option confirm-option" type="button">
+              <div class="decision-radio"><span></span></div>
+              <div class="decision-icon">✓</div>
+              <div class="decision-content">
+                <strong>Confirm as-is</strong>
+                <span>The response is satisfactory without a substantive edit.</span>
+              </div>
+              <div class="decision-code">A = 0</div>
+            </button>
+            <button id="editButton" class="decision-option edit-option" type="button">
+              <div class="decision-radio"><span></span></div>
+              <div class="decision-icon">✎</div>
+              <div class="decision-content">
+                <strong>Needs edit</strong>
+                <span>A meaningful correction or completion is required.</span>
+              </div>
+              <div class="decision-code">A = 1</div>
+            </button>
+          </div>
+
+          <div id="editDetails" class="edit-details disabled">
+            <div class="detail-block">
+              <div class="detail-title">Optional reason <span>— choose the closest category</span></div>
+              <div id="reasonChips" class="reason-chips">
+                <button type="button" data-reason="Factual or reasoning error">Factual / reasoning</button>
+                <button type="button" data-reason="Incomplete">Incomplete</button>
+                <button type="button" data-reason="Does not follow the request">Instruction following</button>
+                <button type="button" data-reason="Clarity or presentation issue">Clarity / presentation</button>
+                <button type="button" data-reason="Other">Other</button>
+              </div>
+            </div>
+            <div class="detail-block note-block">
+              <label class="detail-title" for="noteInput">Optional note <span>— concise rationale for adjudication</span></label>
+              <textarea id="noteInput" maxlength="5000" placeholder="Add a short note if this case is borderline or useful to revisit…"></textarea>
+              <div class="note-help">Notes autosave after you pause typing.</div>
+            </div>
+          </div>
+        </section>
+
+        <nav class="bottom-nav" aria-label="Audit navigation">
+          <button id="prevButton" class="nav-button" type="button"><span>←</span> Previous</button>
+          <button id="nextUnreviewedButton" class="nav-button accent" type="button">Next unreviewed <span>↗</span></button>
+          <button id="nextButton" class="nav-button" type="button">Next <span>→</span></button>
+        </nav>
+      </div>
+    </main>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="/static/app.js"></script>
+</body>
+</html>
